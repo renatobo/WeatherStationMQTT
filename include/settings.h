@@ -71,11 +71,11 @@ See more at http://blog.squix.ch
 #endif
 
 #ifndef DEVICEID
-#define DEVICEID "eps8266"
+#define DEVICEID "esp8266"
 #endif
 
 #ifndef HOSTNAME
-#define HOSTNAME "eps8266"
+#define HOSTNAME "esp8266"
 #endif
 
 #ifndef MYSDA_PIN
