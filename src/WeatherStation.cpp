@@ -162,7 +162,7 @@ void handleRoot()
   String htmlbody((char *)0);
   htmlbody += "<h1>";
   htmlbody += hostname;
-  htmlbody += "</h1>Temp: ";
+  htmlbody += "</h1><p>Temp: ";
   htmlbody += dht_valid_temp ? String(temperature) : "n/a";
 #ifdef METRIC
   htmlbody += " C<br> RelHum:";
@@ -170,7 +170,8 @@ void handleRoot()
   htmlbody += " F<br> RelHum:";
 #endif
   htmlbody += dht_valid_hum ? String(humidity) : "n/a";
-  htmlbody += +" %";
+  htmlbody += " %</p><p>SW build date: ";
+  htmlbody += __TIMESTAMP__;
   server.send(200, F("text/html"), htmlbody);
 }
 
@@ -264,10 +265,18 @@ void setup()
   // wifiManager.resetSettings();
   wifiManager.setAPCallback(configModeCallback);
 
-  //or use this for auto generated name ESP + ChipID
-  wifiManager.autoConnect();
+  // Timeout after 5 minutes: in case of power failure, this prevents the device from being stuck on waiting for AP information
+  wifiManager.setConfigPortalTimeout(300);
 
-  //Manual Wifi
+  //or use this for auto generated name ESP + ChipID
+  if (!wifiManager.autoConnect()) {
+    Serial.println("failed to connect and hit timeout");
+    //reset and try again
+    ESP.restart();
+    delay(1000);
+  }
+
+  // Manual Wifi for debugging
   // WiFi.begin(SSID, PASSWORD);
 
   hostname += String(ESP.getChipId(), HEX);
