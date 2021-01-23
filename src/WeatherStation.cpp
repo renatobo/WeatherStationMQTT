@@ -499,7 +499,7 @@ void updateDHT()
     }
     mySensor.read();
     // temperature
-    int temp_c_tmp = mySensor.getTemperature();
+    float temp_c_tmp = mySensor.getTemperature();
     if (temp_c_tmp > MIN_ALLOWED_TEMP_C && !dht_valid_temp)
     {
       dht_valid_temp = true;
@@ -508,7 +508,7 @@ void updateDHT()
       dtostrf(temperature, 4, 1, FormattedTemperature);
     }
     // humidity
-    int humidity_tmp = mySensor.getHumidity();
+    float humidity_tmp = mySensor.getHumidity();
     if (humidity_tmp > MIN_ALLOWED_HUM && !dht_valid_hum)
     {
       dht_valid_hum = true;
