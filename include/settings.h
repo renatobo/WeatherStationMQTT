@@ -104,11 +104,12 @@ See more at http://blog.squix.ch
 
 
 // MQTT settings for library PubSubClient
-const char* mqtt_server = MY_MQTT_SERVER;
-const char* MQTT_OUT_TOPIC_TEMP = "sensors/" DEVICEID "/temp";
-const char* MQTT_OUT_TOPIC_HUM = "sensors/" DEVICEID "/hum";
-const char* MQTT_OUT_SENSOR_TEMP = DEVICEID "_temp";
-const char* MQTT_OUT_SENSOR_HUM = DEVICEID "_hum";
+const char* mqtt_server PROGMEM = MY_MQTT_SERVER;
+const char* MQTT_OUT_TOPIC_TEMP PROGMEM = "sensors/" DEVICEID "/temp";
+const char* MQTT_OUT_TOPIC_HUM PROGMEM = "sensors/" DEVICEID "/hum";
+const char* MQTT_OUT_SENSOR_TEMP PROGMEM = DEVICEID "_temp";
+const char* MQTT_OUT_SENSOR_HUM PROGMEM = DEVICEID "_hum";
+const char* MQTT_OUT_TOPIC_PRESENCE PROGMEM = "sensors/" DEVICEID "/presence";
 
 // Setup
 const int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
