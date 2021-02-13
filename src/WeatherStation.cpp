@@ -200,6 +200,7 @@ void updateMQTT();
 void mqttcallback(char *topic, byte *payload, unsigned int length);
 void reconnectMQTT();
 int8_t getWifiQuality();
+void updateMQTTpresence(bool ispresent);
 
 // Add frames
 // this array keeps function pointers to all frames
@@ -319,7 +320,7 @@ void setup()
   ui.setOverlays(overlays, numberOfOverlays);
 
 // Setup OTA
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.println("Hostname: " + hostname);
 #endif
   ArduinoOTA.setHostname((const char *)hostname.c_str());
@@ -396,13 +397,15 @@ void loop()
     display.setBrightness(255);
     digitalWrite(LED_BUILTIN, LOW);
     tickerdisplayon.once_scheduled(10, setPresenceOff);
+    // send a MQTT message to signal presence
+    updateMQTTpresence(true);
   }
 #endif
 }
 
 void mqttcallback(char *topic, byte *payload, unsigned int length)
 {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
@@ -416,7 +419,7 @@ void mqttcallback(char *topic, byte *payload, unsigned int length)
 
 void configModeCallback(WiFiManager *myWiFiManager)
 {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.println("Entered config mode");
   Serial.println(WiFi.softAPIP());
   //if you used auto generated SSID, print it
@@ -528,7 +531,7 @@ void updateMQTT()
   }
 
   snprintf(mqttmsg, 75, "MQTT message #%d", ++mqttcounter);
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.print("Publish message: ");
   Serial.println(mqttmsg);
 #endif
@@ -548,7 +551,7 @@ void updateMQTT()
   if (dht_valid_temp == true)
   {
     snprintf(mqttmsg, 75, "%s;%s;%s;%s", time_str, MQTT_OUT_SENSOR_TEMP, MQTT_OUT_UNIT_TEMP, FormattedTemperature);
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
     Serial.println(mqttmsg);
 #endif
     client.publish(MQTT_OUT_TOPIC_TEMP, mqttmsg);
@@ -557,13 +560,26 @@ void updateMQTT()
   if (dht_valid_hum == true)
   {
     snprintf(mqttmsg, 75, "%s;%s;%s;%s", time_str, MQTT_OUT_SENSOR_HUM, MQTT_OUT_UNIT_HUM, FormattedHumidity);
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
     Serial.println(mqttmsg);
 #endif
     client.publish(MQTT_OUT_TOPIC_HUM, mqttmsg);
   }
 
   readyForMQTTUpdate = false;
+}
+
+void updateMQTTpresence(bool ispresent) {
+  if (!client.connected())
+  {
+    reconnectMQTT();
+    client.loop();
+  }
+  if (ispresent) {
+    client.publish(MQTT_OUT_TOPIC_PRESENCE, "TRUE");
+  } else {
+    client.publish(MQTT_OUT_TOPIC_PRESENCE, "FALSE");
+  }
 }
 
 void reconnectMQTT()
@@ -575,7 +591,7 @@ void reconnectMQTT()
     // Attempt to connect
     if (client.connect(hostname.c_str()))
     {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
       Serial.println(" connected");
 #endif
 
@@ -586,7 +602,7 @@ void reconnectMQTT()
     }
     else
     {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
       Serial.print("failed, rc=");
       Serial.print(client.state());
       Serial.println(" try again in 5 seconds");
@@ -743,7 +759,7 @@ int8_t getWifiQuality()
 
 void setReadyForWeatherUpdate()
 {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.println("Setting readyForUpdate to true");
 #endif
   readyForWeatherUpdate = true;
@@ -751,7 +767,7 @@ void setReadyForWeatherUpdate()
 
 void setReadyForDHTUpdate()
 {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.println("Setting readyForDHTUpdate to true");
 #endif
   readyForDHTUpdate = true;
@@ -759,7 +775,7 @@ void setReadyForDHTUpdate()
 
 void setReadyForMQTTUpdate()
 {
-#ifdef DEBUG_ESP_PORT
+#ifdef DEBUG
   Serial.println("Setting readyForMQTTUpdate to true");
 #endif
   readyForMQTTUpdate = true;
@@ -778,5 +794,7 @@ void setPresenceOff()
 void setDisplayOff()
 {
   display.displayOff(); // drastic off
+   // Send an MQTT message to signal presence is off
+   updateMQTTpresence(false);
 }
 #endif
