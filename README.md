@@ -10,7 +10,7 @@ As provided by [neptune2](https://github.com/neptune2/esp8266-weather-station-ol
 
 Then I added
 
-* **MQTT client** to log temperature and humidity
+* **MQTT client** to log temperature, humidity, and PIR presence status
 * **a PIR sensor** integration to turn on the screen only when someone is in front of it:  to avoid burning the display (after 2 years, the OLED on my first device is almost burnt out) but also to eliminate the bright light at night time
 * a minimal **web server** page 
 
