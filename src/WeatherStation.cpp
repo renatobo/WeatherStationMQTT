@@ -64,6 +64,9 @@ See more at https://thingpulse.com
 #include <ESP8266WebServer.h>
 #include <WiFiManager.h>
 
+// Show how long it has been running for
+#include <uptime_formatter.h>
+
 #ifdef i2cOLED
 #include <SSD1306Wire.h>
 // Pin definitions for I2C OLED
@@ -71,13 +74,15 @@ const int I2C_DISPLAY_ADDRESS = 0x3c;
 const int SDA_PIN = MYSDA_PIN;
 const int SDC_PIN = MYSDC_PIN;
 #endif
+/* Broken as of 2022-12-24, so removing
 #ifdef brzo_i2c
-#include <SSD1306Brzo.h>
+// #include <SSD1306Brzo.h>
 // Pin definitions for I2C OLED
-const int I2C_DISPLAY_ADDRESS = 0x3c;
+// const int I2C_DISPLAY_ADDRESS = 0x3c;
 const int SDA_PIN = MYSDA_PIN;
 const int SDC_PIN = MYSDC_PIN;
 #endif
+*/
 #include <OLEDDisplayUi.h>
 
 // #include "WundergroundClient.h"
@@ -93,9 +98,11 @@ const int SDC_PIN = MYSDC_PIN;
 // Add MQTT
 #include <PubSubClient.h>
 
-#ifdef brzo_i2c
+/* Broken library as 2022-12-24
+ #ifdef brzo_i2c
 SSD1306Brzo display(I2C_DISPLAY_ADDRESS, SDA_PIN, SDC_PIN); // I2C OLED with Brzo
 #endif
+*/
 #ifdef i2cOLED
 SSD1306Wire display(I2C_DISPLAY_ADDRESS, SDA_PIN, SDC_PIN); // I2C OLED
 #endif
@@ -159,6 +166,14 @@ ESP8266WebServer server(80);
 
 void handleRoot()
 {
+    //compute datestring
+  char time_str[18];
+  time_t now = dstAdjusted.time(nullptr);
+  struct tm *timeinfo = localtime(&now);
+  snprintf(time_str, 20, "%04d-%02d-%02d %02d:%02d:%02d", timeinfo->tm_year + 1900,
+           timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min,
+           timeinfo->tm_sec);
+  
   String htmlbody((char *)0);
   htmlbody += "<h1>";
   htmlbody += hostname;
@@ -167,10 +182,43 @@ void handleRoot()
 #ifdef METRIC
   htmlbody += " C<br> RelHum:";
 #else
-  htmlbody += " F<br> RelHum:";
+  htmlbody += " F<br> RelHum: ";
 #endif
   htmlbody += dht_valid_hum ? String(humidity) : "n/a";
-  htmlbody += " %</p><p>SW build date: ";
+  htmlbody += " %</br>Sample Time: ";
+  htmlbody += time_str;
+  htmlbody += "</p><p><a href=/info>Info</a></p>";
+  server.send(200, F("text/html"), htmlbody);
+}
+
+void handleAPItemp()
+{
+  String jsonbody((char *)0);
+  jsonbody += "{\"temp\": ";
+  jsonbody += dht_valid_temp ? String(temperature) : "\"n/a\"";
+  jsonbody += "}";
+  server.send(200, F("text/json"), jsonbody);
+}
+
+void handleInfo()
+{
+  String htmlbody((char *)0);
+  String mqtttemp = MQTT_OUT_TOPIC_TEMP;
+  String mqtthum = MQTT_OUT_TOPIC_HUM;
+
+  htmlbody += "<h1>";
+  htmlbody += hostname;
+  htmlbody += "</h1><p>MQTT topics:<ul><li>temperature: "+mqtttemp;
+  htmlbody += "</li><li>humidity: "+mqtthum;
+  #ifdef PIR_PRESENCE_CONTROL
+  String mqttpresence = MQTT_OUT_TOPIC_PRESENCE;
+  htmlbody += "</li><li>presence: "+mqttpresence;
+  #elif
+  htmlbody += "</li><li>presence: not compiled";
+  #endif
+  htmlbody += "</li></ul><p>Device: " + String(ESP.getChipId(), HEX) + "</p><p>Device uptime: ";
+  htmlbody += uptime_formatter::getUptime();
+  htmlbody += "</p><p>SW build date: ";
   htmlbody += __TIMESTAMP__;
   server.send(200, F("text/html"), htmlbody);
 }
@@ -280,8 +328,10 @@ void setup()
   // Manual Wifi for debugging
   // WiFi.begin(SSID, PASSWORD);
 
-  hostname += String(ESP.getChipId(), HEX);
+  // hostname += String(ESP.getChipId(), HEX);
   WiFi.hostname(hostname);
+
+  Serial.print("My hostname is: "+ hostname);
 
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED)
@@ -330,6 +380,8 @@ void setup()
   // setup mqtt
   client.setServer(mqtt_server, 1883);
   client.setCallback(mqttcallback);
+  // RB Added 2022-12
+  client.setKeepAlive(60);
 
   // Issues with some DTH22 sensors, so disabling IRQ
   mySensor.setDisableIRQ(true);
@@ -350,6 +402,8 @@ void setup()
 
 #ifdef INTERNAL_WEBSERVER
   server.on("/", handleRoot);
+  server.on("/temp",handleAPItemp);
+  server.on("/info",handleInfo);
   server.begin();
 #endif
 }

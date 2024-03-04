@@ -23,6 +23,8 @@ SOFTWARE.
 See more at http://blog.squix.ch
 */
 
+// TODO: update for https://github.com/esp8266/Arduino/blob/master/libraries/esp8266/examples/NTP-TZ-DST/NTP-TZ-DST.ino 
+
 /* Customizations by Neptune (NeptuneEng on Twitter, Neptune2 on Github)
  *  
  *  Added Wifi Splash screen and credit to Squix78
