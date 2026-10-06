@@ -1,6 +1,6 @@
 # WeatherStationMQTT
 
-Current tagged firmware: [v0.2.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.2.0).
+Current tagged firmware: [v0.3.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.3.0).
 See [CHANGELOG.md](CHANGELOG.md).
 
 Additions to the already good [Weather Station](https://github.com/ThingPulse/esp8266-weather-station-color):
@@ -55,7 +55,7 @@ cp mysecret_envs.ini.example mysecret_envs.ini
 pio run
 ```
 
-The examples deliberately use dummy identities, a dummy weather key and a
+The examples deliberately use dummy identities, Berlin weather coordinates and a
 nonresolving MQTT address. Replace them with private deployment values before
 any upload, and verify wiring. `build-profiles.ini` defines all six profiles;
 the ignored INI can override their private OTA destinations. Existing private
@@ -70,7 +70,7 @@ temporary directory and use a new Core directory:
 
 ```sh
 baseline_dir=$(mktemp -d)
-cp -R src include lib "$baseline_dir/"
+cp -R src include lib scripts "$baseline_dir/"
 cp platformio.ini build-profiles.ini "$baseline_dir/"
 cp include/mysecrets.h.example "$baseline_dir/include/mysecrets.h"
 cp mysecret_envs.ini.example "$baseline_dir/mysecret_envs.ini"
@@ -118,8 +118,7 @@ The existing semicolon payload and topics are preserved.
 
 `/info` adds sample age/validity, sensor errors, connection and publication counts,
 pending replacements/expiration, skipped scheduled samples and maximum MQTT
-service gap. Optional weather still uses synchronous HTTP and is deferred while
-MQTT is offline; bounding that dependency is Phase 2 work.
+service gap. Weather behavior and its limits are described below.
 
 Run the host policy tests with sanitizers:
 
@@ -132,6 +131,57 @@ clang++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 
 These test the shared scheduling, formatting and pending-sample policies using
 fake clocks and clients. They do not replace hardware outage or long-soak tests.
+
+### Weather and diagnostics
+
+Weather data comes from [Open-Meteo](https://open-meteo.com/), under
+[CC BY 4.0 and its free personal-use terms](https://open-meteo.com/en/terms).
+No API key is required. Configure `WEATHER_LATITUDE`, `WEATHER_LONGITUDE` and
+`WEATHER_TIMEZONE` in the ignored private header; the previous OpenWeatherMap
+credential is no longer used. Coordinates in the configuration example are
+public sample data, not deployment settings.
+
+The current display uses model-derived temperature and WMO condition codes;
+enabled forecast panels show daily high/low temperatures for the location's local
+calendar days. These are not identical to OpenWeatherMap's station conditions
+and three-hour/noon forecast values. The indoor sensor MQTT schema is unchanged.
+
+HTTPS verifies the hostname and certificate dates using the public ISRG Root X1
+anchor. An unsynchronized clock defers requests. There is no insecure fallback.
+Refresh is every ten minutes, with failed attempts retried at most once per minute;
+weather is deferred while MQTT is disconnected or heap headroom is insufficient.
+
+The request budget is eight seconds, the idle budget 1.5 seconds, and storage is
+limited to 2048 response bytes plus its terminator. DNS/TCP setup allow one second
+each; the TLS handshake is capped at four seconds. Individual SDK calls can finish
+after a budget check, so the budget is checked again before cache commit. Initial
+DNS/TCP/TLS setup is synchronous; subsequent reads pump the application services.
+Errors preserve the last good complete snapshot and mark it stale. Weather never
+requests a firmware restart.
+
+`scripts/bounded_tls.py` verifies the SHA256 of the pinned SDK source and generates
+the bounded copy under `.pio/build/<profile>/bounded-sdk/`. It does not change the
+shared framework cache. Review this overlay when changing framework versions.
+The CA anchor in `include/WeatherTrust.h` must also be reviewed if the provider
+changes its certificate chain. Oversized TLS records fail closed.
+
+`/info` reports weather state, attempt/success/failure counts, TLS/HTTP status,
+validation stage, durations and cache age, plus current/minimum free heap,
+largest free blocks, fragmentation, continuation-stack margin and reset details.
+Heap minima are sampled, not continuous allocator instrumentation.
+
+Run the weather checks after installing the pinned dependencies:
+
+```sh
+clang++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -fno-omit-frame-pointer -Iinclude -I.pio/libdeps/workshop/ArduinoJson/src \
+  test/weather_test.cpp -o /tmp/weather-weather-tests
+/tmp/weather-weather-tests test/fixtures/weather.json
+```
+
+Use `scripts/verify_device.py --weather` with the archived device image for a live
+check of version, image identity, fresh validated weather, TLS status and heap
+diagnostics. See [Phase 2 evidence](docs/assessments/2026-10-06-phase2.md).
 
 For each subsequent release, bump `include/version.h`, update `CHANGELOG.md`,
 build and verify all profiles, commit the intended changes, and create/publish

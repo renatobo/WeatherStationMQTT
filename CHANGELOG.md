@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.3.0) - 2026-10-06
+
+- Replace the active OpenWeatherMap path with key-free Open-Meteo conditions and
+  daily forecasts for the same configured city. Retire the weather credential.
+- Verify HTTPS server identity and certificate dates with ISRG Root X1; reject
+  redirects and unsupported data instead of falling back to insecure transport.
+- Bound DNS/TCP setup, TLS handshake, idle reads, total request time and response
+  storage. Generate a hash-checked timeout overlay in each build directory;
+  leave the pinned shared SDK unchanged.
+- Service MQTT, sensor reads, HTTP, OTA and display while reading response data.
+  Preserve the last good weather snapshot on failures and mark it stale.
+- Validate JSON, unit labels, dates, WMO codes and forecast arrays before updating
+  the complete cache. Show daily high/low values in enabled forecast panels.
+- Add weather-stage, TLS, validation, request-duration, heap/fragmentation and
+  reset diagnostics to `/info`; reserve its output buffer to reduce allocation churn.
+- Remove the unused Weather Station and JsonStreamingParser dependencies; pin
+  ArduinoJson 6.21.6 for fixed-capacity parsing and its maintenance security fix.
+- Add sanitizer checks for decoder failures, cache preservation and request limits.
+
+DNS/TCP/TLS setup remains synchronous and bounded; body/header reads are serviced
+cooperatively. Long soak, physical outage tests, management authentication,
+MQTT TLS and signed updates remain later-phase work.
+
 ## [0.2.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.2.0) - 2026-10-06
 
 - Service MQTT every main-loop iteration; use one Wi-Fi-gated reconnect attempt

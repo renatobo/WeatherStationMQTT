@@ -8,7 +8,7 @@ import re
 import urllib.request
 
 
-def verify(host, binary):
+def verify(host, binary, check_weather=False):
     root = Path(__file__).resolve().parents[1]
     version = re.search(r'#define FIRMWARE_VERSION "([^"]+)"',
                         (root / 'include' / 'version.h').read_text()).group(1)
@@ -35,18 +35,33 @@ def verify(host, binary):
     reset = field('Reset reason')
     if not reset or reset == 'unavailable':
         raise RuntimeError('Reset reason unavailable')
-    print(json.dumps({
+    result = {
         'host': host, 'version': version, 'github_tag': tag_url,
         'sketch_md5': actual, 'matches_local_binary': True,
         'build_date': field('SW build date'),
         'profile': field('Device profile'), 'reset_reason': reset,
         'wifi_rssi': rssi, 'uptime': field('Device uptime'),
-    }, indent=2))
+    }
+    if check_weather:
+        state = field('Weather state')
+        attempts, successes, failures = map(int, field('Weather attempts/successes/failures').split('/'))
+        if state not in ('fresh', 'updating') or successes < 1 or field('Weather HTTP status') != '200':
+            raise RuntimeError('No successful validated weather response on device')
+        if field('Weather last error') != 'none' or int(field('Weather TLS error')) != 0:
+            raise RuntimeError('Weather request or TLS validation failed')
+        if int(field('Weather last good age seconds')) >= 1200:
+            raise RuntimeError('Weather cache is stale')
+        result['weather'] = {'state': state, 'attempts': attempts, 'successes': successes,
+                             'failures': failures, 'verified_https_and_data': True,
+                             'heap_free_minimum': field('Heap free/minimum bytes'),
+                             'heap_largest_minimum': field('Heap largest/minimum block bytes')}
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('host', help='Device hostname or IP address')
     parser.add_argument('--binary', required=True, help='Archived firmware.bin to compare')
+    parser.add_argument('--weather', action='store_true', help='Require a fresh validated HTTPS weather response')
     args = parser.parse_args()
-    verify(args.host, args.binary)
+    verify(args.host, args.binary, args.weather)

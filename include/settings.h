@@ -52,10 +52,8 @@ See more at http://blog.squix.ch
 // for setup instructions
 #include "mysecrets.h"
 
-// Sign up here to get an API key:
-// https://docs.thingpulse.com/how-tos/openweathermap-key/
-#ifndef MYOPEN_WEATHER_MAP_APP_ID
-#error "Sign up here to get an API key: https://docs.thingpulse.com/how-tos/openweathermap-key/ and define macro MYOPEN_WEATHER_MAP_APP_ID"
+#if !defined(WEATHER_LATITUDE) || !defined(WEATHER_LONGITUDE) || !defined(WEATHER_TIMEZONE)
+#error "Configure WEATHER_LATITUDE, WEATHER_LONGITUDE and WEATHER_TIMEZONE in mysecrets.h"
 #endif
 
 // enable web server to show temp and hum
@@ -143,26 +141,12 @@ struct dstRule EndRule = {"PST", First, Sun, Nov, 1, 0};       // Eastern Standa
 
 #define NTP_SERVERS "us.pool.ntp.org", "time.nist.gov", "pool.ntp.org"
 
-// OpenWeatherMap Settings
-String OPEN_WEATHER_MAP_APP_ID = MYOPEN_WEATHER_MAP_APP_ID;
-/*
-Go to https://openweathermap.org/find?q= and search for a location. Go through the
-result set and select the entry closest to the actual location you want to display 
-data for. It'll be a URL like https://openweathermap.org/city/2657896. The number
-at the end is what you assign to the constant below.
- */
-String OPEN_WEATHER_MAP_LOCATION_ID = MYOPEN_WEATHER_MAP_LOCATION;
-
-// Pick a language code from this list:
-// Arabic - ar, Bulgarian - bg, Catalan - ca, Czech - cz, German - de, Greek - el,
-// English - en, Persian (Farsi) - fa, Finnish - fi, French - fr, Galician - gl,
-// Croatian - hr, Hungarian - hu, Italian - it, Japanese - ja, Korean - kr,
-// Latvian - la, Lithuanian - lt, Macedonian - mk, Dutch - nl, Polish - pl,
-// Portuguese - pt, Romanian - ro, Russian - ru, Swedish - se, Slovak - sk,
-// Slovenian - sl, Spanish - es, Turkish - tr, Ukrainian - ua, Vietnamese - vi,
-// Chinese Simplified - zh_cn, Chinese Traditional - zh_tw.
-String OPEN_WEATHER_MAP_LANGUAGE = "en";
+// Open-Meteo is key-free; private coordinates preserve the configured weather city.
+#ifdef forecast_enable_long
+const uint8_t MAX_FORECASTS = 6;
+#else
 const uint8_t MAX_FORECASTS = 4;
+#endif
 
 #ifdef METRIC
 const boolean IS_METRIC = true;

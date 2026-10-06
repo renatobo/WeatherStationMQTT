@@ -45,6 +45,9 @@ def archive(label):
         for name in ('firmware.bin', 'firmware.elf'):
             source = root / '.pio' / 'build' / profile / name
             files.append(source)
+        overlay = root / '.pio' / 'build' / profile / 'bounded-sdk' / 'WiFiClientSecureBearSSL.cpp'
+        if overlay.exists():
+            files.append(overlay)
         libraries = {}
         for library in (root / '.pio' / 'libdeps' / profile).iterdir():
             if not library.is_dir() or library.name.startswith('.'):

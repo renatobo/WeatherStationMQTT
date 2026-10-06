@@ -58,7 +58,10 @@ See more at https://thingpulse.com
 #include "settings.h"
 #include "version.h"
 #include "TelemetryState.h"
-#include <JsonListener.h>
+#include <ESP8266HTTPClient.h>
+#include "WeatherJson.h"
+#include "WeatherTransport.h"
+#include "WeatherTrust.h"
 #include <ArduinoOTA.h>
 #include <ESP8266mDNS.h>
 #include <time.h>
@@ -89,8 +92,6 @@ const int SDC_PIN = MYSDC_PIN;
 
 // #include "WundergroundClient.h"
 // RB Added 2019-03-16
-#include "OpenWeatherMapCurrent.h"
-#include "OpenWeatherMapForecast.h"
 
 #include "WeatherStationFonts.h"
 #include "WeatherStationImages.h"
@@ -111,15 +112,33 @@ SSD1306Wire display(I2C_DISPLAY_ADDRESS, SDA_PIN, SDC_PIN); // I2C OLED
 
 OLEDDisplayUi ui(&display);
 
-// RB removed 2019-03-16
-// // Initialize Wunderground client with METRIC setting
-// WundergroundClient wunderground(IS_METRIC);
-// RB added 2019-03-16
-OpenWeatherMapCurrentData currentWeather;
-OpenWeatherMapCurrent currentWeatherClient;
+Weather::Snapshot currentWeather;
+bool weatherHasSample = false, weatherInProgress = false, weatherAttempted = false;
+Weather::Error weatherError = Weather::Error::None;
+Weather::Deadline* activeWeatherDeadline = nullptr;
+uint32_t weatherAttempts = 0, weatherSuccesses = 0, weatherFailures = 0;
+uint32_t weatherLastAttemptAt = 0, weatherLastSuccessAt = 0, weatherLastDuration = 0;
+uint32_t weatherMaxDuration = 0;
+int weatherHttpStatus = 0;
+int weatherTlsError = 0;
+const char* weatherStage = "not started";
+const char* weatherValidation = "none";
+char weatherBody[2049];
+uint32_t healthLastSampleAt = 0, heapFree = 0, heapLargestBlock = 0;
+uint32_t heapMinimum = UINT32_MAX, heapMinimumLargestBlock = UINT32_MAX;
+uint8_t heapFragmentation = 0;
 
-OpenWeatherMapForecastData forecasts[MAX_FORECASTS];
-OpenWeatherMapForecast forecastClient;
+void sampleSystemHealth() {
+  ESP.getHeapStats(&heapFree, &heapLargestBlock, &heapFragmentation);
+  if (heapFree < heapMinimum) heapMinimum = heapFree;
+  if (heapLargestBlock < heapMinimumLargestBlock) heapMinimumLargestBlock = heapLargestBlock;
+  healthLastSampleAt = millis();
+}
+
+bool weatherFresh() {
+  return weatherHasSample && weatherError == Weather::Error::None &&
+      !Telemetry::elapsed(millis(), weatherLastSuccessAt, 1200000);
+}
 
 // Initialize the temperature/ humidity sensor
 #if DHTTYPE == DHT22
@@ -140,7 +159,7 @@ bool dht_valid_temp = false;
 bool dht_valid_hum = false;
 
 // flag changed in the ticker function every 10 minutes
-volatile bool readyForWeatherUpdate = false;
+volatile bool readyForWeatherUpdate = true;
 
 String lastUpdate = "--";
 
@@ -217,7 +236,9 @@ void handleAPItemp()
 
 void handleInfo()
 {
+  sampleSystemHealth();
   String htmlbody((char *)0);
+  htmlbody.reserve(4096);
   String mqtttemp = MQTT_OUT_TOPIC_TEMP;
   String mqtthum = MQTT_OUT_TOPIC_HUM;
 
@@ -285,6 +306,39 @@ void handleInfo()
   htmlbody += String(publishStats.replaced) + "/" + String(publishStats.expired) + "/" + String(publishStats.formatErrors);
   htmlbody += F("</p><p>MQTT maximum service gap ms: ");
   htmlbody += String(mqttMaxServiceGap);
+  htmlbody += F("</p><p>Weather provider: <a href=\"https://open-meteo.com/\">Open-Meteo</a>");
+  htmlbody += F("</p><p>Weather state: ");
+  htmlbody += weatherInProgress ? F("updating") : (weatherFresh() ? F("fresh") : (weatherHasSample ? F("stale") : F("unavailable")));
+  htmlbody += F("</p><p>Weather attempts/successes/failures: ");
+  htmlbody += String(weatherAttempts) + "/" + String(weatherSuccesses) + "/" + String(weatherFailures);
+  htmlbody += F("</p><p>Weather last error: ");
+  htmlbody += Weather::errorName(weatherError);
+  htmlbody += F("</p><p>Weather HTTP status: ");
+  htmlbody += String(weatherHttpStatus);
+  htmlbody += F("</p><p>Weather TLS error: ");
+  htmlbody += String(weatherTlsError);
+  htmlbody += F("</p><p>Weather request stage: ");
+  htmlbody += weatherStage;
+  htmlbody += F("</p><p>Weather validation: ");
+  htmlbody += weatherValidation;
+  htmlbody += F("</p><p>Weather last/max duration ms: ");
+  htmlbody += String(weatherLastDuration) + "/" + String(weatherMaxDuration);
+  htmlbody += F("</p><p>Weather last good age seconds: ");
+  htmlbody += weatherHasSample ? String(static_cast<uint32_t>(millis() - weatherLastSuccessAt) / 1000) : String(F("unavailable"));
+  htmlbody += F("</p><p>Weather observation local time: ");
+  htmlbody += weatherHasSample ? currentWeather.current.time : "unavailable";
+  htmlbody += F("</p><p>Weather time zone: ");
+  htmlbody += WEATHER_TIMEZONE;
+  htmlbody += F("</p><p>Heap free/minimum bytes: ");
+  htmlbody += String(heapFree) + "/" + String(heapMinimum);
+  htmlbody += F("</p><p>Heap largest/minimum block bytes: ");
+  htmlbody += String(heapLargestBlock) + "/" + String(heapMinimumLargestBlock);
+  htmlbody += F("</p><p>Heap fragmentation percent: ");
+  htmlbody += String(heapFragmentation);
+  htmlbody += F("</p><p>Free continuation stack bytes: ");
+  htmlbody += String(ESP.getFreeContStack());
+  htmlbody += F("</p><p>Last reset details: ");
+  htmlbody += ESP.getResetInfo();
   htmlbody += F("</p>");
   server.send(200, F("text/html"), htmlbody);
 }
@@ -298,7 +352,7 @@ void drawOtaProgress(unsigned int, unsigned int);
 void updateData(OLEDDisplay *display);
 void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
 void drawCurrentWeather(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
-#ifdef forecast_enable
+#if defined(forecast_enable) || defined(forecast_enable_long)
 void drawForecast(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
 void drawForecastDetails(OLEDDisplay *display, int x, int y, int dayIndex);
 #endif
@@ -322,15 +376,11 @@ void updateMQTTpresence(bool ispresent);
 // Version with 6 days of forecast
 FrameCallback frames[] = {drawDateTime, drawCurrentWeather, drawIndoor, drawForecast, drawForecast2};
 int numberOfFrames = 5;
-#endif
-
-#ifdef forecast_enable
+#elif defined(forecast_enable)
 // show only 3 days of forecast
 FrameCallback frames[] = {drawDateTime, drawIndoor, drawCurrentWeather, drawForecast};
 int numberOfFrames = 4;
-#endif
-
-#ifndef forecast_enable
+#else
 // show only 3 days of forecast
 FrameCallback frames[] = {drawDateTime, drawIndoor, drawCurrentWeather};
 int numberOfFrames = 3;
@@ -453,7 +503,7 @@ void setup()
   mySensor.setType(DHTTYPE == DHT11 ? 11 : 22);
   mySensor.setWaitForReading(false);
   mySensor.setReadDelay(2500);
-  updateData(&display);
+  sampleSystemHealth();
 
   tickerweather.attach(UPDATE_INTERVAL_SECS, setReadyForWeatherUpdate);
   lastMqttScheduleAt = millis();
@@ -474,6 +524,7 @@ void updateDHT();
 void loop()
 {
 
+  if (Telemetry::elapsed(millis(), healthLastSampleAt, 1000)) sampleSystemHealth();
   serviceMQTT();
   updateDHT();
   if (Telemetry::elapsed(millis(), lastMqttScheduleAt, UPDATE_MQTT_INTERVAL_SECS * 1000UL)) {
@@ -497,10 +548,10 @@ void loop()
   server.handleClient();
 #endif
 
-  // Optional synchronous weather is deferred during a broker/Wi-Fi outage.
-  // Its HTTP wall-clock deadline remains a Phase 2 dependency repair.
-  if (readyForWeatherUpdate && client.connected() && !pendingSample.active &&
-      ui.getUiState()->frameState == FIXED) updateData(&display);
+  bool weatherRetry = weatherAttempted && weatherError != Weather::Error::None &&
+      Telemetry::elapsed(millis(), weatherLastAttemptAt, 60000);
+  if (!weatherInProgress && (readyForWeatherUpdate || weatherRetry) && client.connected() &&
+      !pendingSample.active) updateData(&display);
 
   int remainingTimeBudget = ui.update();
 
@@ -594,27 +645,118 @@ void drawOtaProgress(unsigned int progress, unsigned int total)
   display.display();
 }
 
-void updateData(OLEDDisplay *display)
+// Cooperative application service while HTTP headers/body are arriving.
+void serviceDuringWeather()
 {
-  drawProgress(display, 10, "Updating time...");
-  configTime(UTC_OFFSET * 3600, 0, NTP_SERVERS);
-  // 2019-03-16
-  drawProgress(display, 30, "Updating weather...");
-  currentWeatherClient.setMetric(IS_METRIC);
-  currentWeatherClient.setLanguage(OPEN_WEATHER_MAP_LANGUAGE);
-  currentWeatherClient.updateCurrentById(&currentWeather, OPEN_WEATHER_MAP_APP_ID, OPEN_WEATHER_MAP_LOCATION_ID);
-
-#ifdef forecast_enable
-  drawProgress(display, 50, "Updating forecasts...");
-  forecastClient.setMetric(IS_METRIC);
-  forecastClient.setLanguage(OPEN_WEATHER_MAP_LANGUAGE);
-  uint8_t allowedHours[] = {12};
-  forecastClient.setAllowedHours(allowedHours, sizeof(allowedHours));
-  forecastClient.updateForecastsById(forecasts, OPEN_WEATHER_MAP_APP_ID, OPEN_WEATHER_MAP_LOCATION_ID, MAX_FORECASTS);
+  sampleSystemHealth();
+  if (heapFree < 6144 && activeWeatherDeadline) {
+    activeWeatherDeadline->error = Weather::Error::LowMemory;
+    return;
+  }
+  serviceMQTT();
+  updateDHT();
+  if (Telemetry::elapsed(millis(), lastMqttScheduleAt, UPDATE_MQTT_INTERVAL_SECS * 1000UL)) {
+    lastMqttScheduleAt = millis();
+    updateMQTT();
+  }
+  pendingSample.flush(client, millis(), MQTT_OUT_TOPIC_TEMP, MQTT_OUT_TOPIC_HUM, publishStats);
+  ArduinoOTA.handle();
+#ifdef INTERNAL_WEBSERVER
+  server.handleClient();
 #endif
+  ui.update();
+  yield();
+}
 
+void updateData(OLEDDisplay*)
+{
   readyForWeatherUpdate = false;
-  drawProgress(display, 100, "Done...");
+  weatherAttempted = true;
+  weatherLastAttemptAt = millis();
+  weatherHttpStatus = 0;
+  if (!std::isfinite(static_cast<double>(WEATHER_LATITUDE)) ||
+      !std::isfinite(static_cast<double>(WEATHER_LONGITUDE)) ||
+      WEATHER_LATITUDE < -90 || WEATHER_LATITUDE > 90 || WEATHER_LONGITUDE < -180 || WEATHER_LONGITUDE > 180) {
+    weatherError = Weather::Error::Schema;
+    return;
+  }
+  if (time(nullptr) < 1577836800) {
+    weatherError = Weather::Error::Clock;
+    return;
+  }
+  sampleSystemHealth();
+  if (heapFree < 26000 || heapLargestBlock < 10000) {
+    weatherError = Weather::Error::LowMemory;
+    return;
+  }
+  weatherInProgress = true;
+  ++weatherAttempts;
+  Weather::Deadline deadline(millis());
+  activeWeatherDeadline = &deadline;
+  static BearSSL::X509List trust(WEATHER_ROOT_CA);
+  Weather::TlsClient secure(deadline, serviceDuringWeather, &trust);
+  HTTPClient http;
+  Weather::Snapshot candidate;
+  bool candidateValid = false;
+  String zone(WEATHER_TIMEZONE);
+  for (const char* c = WEATHER_TIMEZONE; *c; ++c) {
+    if (!std::isalnum(static_cast<unsigned char>(*c)) && *c != '/' && *c != '_' && *c != '+' && *c != '-') {
+      deadline.error = Weather::Error::Schema;
+      break;
+    }
+  }
+  zone.replace("+", "%2B");
+  zone.replace("/", "%2F");
+  char url[384];
+  int written = snprintf(url, sizeof(url),
+      "https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
+      "&current=temperature_2m,weather_code,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min"
+      "&forecast_days=%u&temperature_unit=%s&timezone=%s", static_cast<double>(WEATHER_LATITUDE),
+      static_cast<double>(WEATHER_LONGITUDE), MAX_FORECASTS, IS_METRIC ? "celsius" : "fahrenheit", zone.c_str());
+  Weather::Error attemptError = Weather::Error::Connect;
+  if (deadline.error == Weather::Error::None && written > 0 && static_cast<size_t>(written) < sizeof(url) && http.begin(secure, url)) {
+    http.setReuse(false);
+    http.useHTTP10(true);
+    http.setTimeout(250);
+    http.addHeader(F("Accept-Encoding"), F("identity"));
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    http.setUserAgent(F("WeatherStationMQTT/" FIRMWARE_VERSION));
+    weatherHttpStatus = http.GET();
+    if (weatherHttpStatus == 200) {
+      deadline.stage = "HTTP body";
+      Weather::Body body(weatherBody, sizeof(weatherBody), deadline);
+      int received = http.writeToStream(&body); // SDK decodes content-length/chunked framing
+      sampleSystemHealth();
+      if (deadline.error != Weather::Error::None) attemptError = deadline.error;
+      else if (received < 0 || static_cast<size_t>(received) != body.used()) attemptError = Weather::Error::Truncated;
+      else if (!Weather::decode(weatherBody, body.used(), IS_METRIC, candidate, MAX_FORECASTS, &weatherValidation)) {
+        deadline.stage = "JSON validation";
+        attemptError = Weather::Error::Json;
+      }
+      else {
+        attemptError = Weather::Error::None;
+        candidateValid = true;
+      }
+    } else attemptError = deadline.error != Weather::Error::None ? deadline.error :
+        (weatherHttpStatus < 0 ? Weather::Error::Connect : Weather::Error::Http);
+    http.end();
+  }
+  weatherError = deadline.error != Weather::Error::None ? deadline.error : attemptError;
+  if (static_cast<uint32_t>(millis() - deadline.started) >= 8000) weatherError = Weather::Error::TotalTimeout;
+  if (candidateValid && weatherError == Weather::Error::None) {
+    currentWeather = candidate;
+    weatherHasSample = true;
+    weatherLastSuccessAt = millis();
+    ++weatherSuccesses;
+  }
+  if (weatherError != Weather::Error::None) ++weatherFailures;
+  activeWeatherDeadline = nullptr;
+  weatherTlsError = deadline.tlsError;
+  weatherStage = deadline.stage;
+  weatherInProgress = false;
+  weatherLastDuration = millis() - deadline.started;
+  if (weatherLastDuration > weatherMaxDuration) weatherMaxDuration = weatherLastDuration;
+  sampleSystemHealth();
 }
 
 // One bounded read attempt; failed reads are spaced by SensorCycle.
@@ -727,16 +869,16 @@ void drawCurrentWeather(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t
 {
   display->setFont(ArialMT_Plain_10);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64 + x, 38 + y, currentWeather.description);
-
+  String description = weatherHasSample ? String(Weather::description(currentWeather.current.code)) : String("Weather unavailable");
+  if (weatherHasSample && !weatherFresh()) description = "Stale: " + description;
+  display->drawString(64 + x, 38 + y, description);
   display->setFont(ArialMT_Plain_24);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
-  String temp = String(currentWeather.temp, 1) + (IS_METRIC ? "°C" : "°F");
+  String temp = weatherHasSample ? String(currentWeather.current.temperature, 1) + (IS_METRIC ? "°C" : "°F") : String("n/a");
   display->drawString(60 + x, 5 + y, temp);
-
   display->setFont(Meteocons_Plain_36);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(32 + x, 0 + y, currentWeather.iconMeteoCon);
+  if (weatherHasSample) display->drawString(32 + x, 0 + y, String(Weather::glyph(currentWeather.current.code, currentWeather.current.day)));
 }
 
 void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
@@ -749,7 +891,7 @@ void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int1
   display->drawString(64 + x, 30, "Humidity: " + (sampleFresh() ? String(FormattedHumidity) : String("n/a")) + "%");
 }
 
-#ifdef forecast_enable
+#if defined(forecast_enable) || defined(forecast_enable_long)
 void drawForecast(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
   drawForecastDetails(display, x, y, 0);
@@ -758,20 +900,29 @@ void drawForecast(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, in
 }
 void drawForecastDetails(OLEDDisplay *display, int x, int y, int dayIndex)
 {
-  time_t observationTimestamp = forecasts[dayIndex].observationTime;
-  struct tm *timeInfo;
-  timeInfo = localtime(&observationTimestamp);
   display->setTextAlignment(TEXT_ALIGN_CENTER);
   display->setFont(ArialMT_Plain_10);
-  display->drawString(x + 20, y, WDAY_NAMES[timeInfo->tm_wday]);
-
+  if (!weatherHasSample || dayIndex >= currentWeather.count) {
+    display->drawString(x + 20, y + 34, "n/a");
+    return;
+  }
+  const Weather::Forecast& forecast = currentWeather.days[dayIndex];
+  display->drawString(x + 20, y, WDAY_NAMES[forecast.weekday]);
   display->setFont(Meteocons_Plain_21);
-  display->drawString(x + 20, y + 12, forecasts[dayIndex].iconMeteoCon);
-  String temp = String(forecasts[dayIndex].temp, 0) + (IS_METRIC ? "°C" : "°F");
+  display->drawString(x + 20, y + 12, String(Weather::glyph(forecast.code, true)));
   display->setFont(ArialMT_Plain_10);
-  display->drawString(x + 20, y + 34, temp);
+  display->drawString(x + 20, y + 34, String(forecast.high, 0) + "/" + String(forecast.low, 0) + (IS_METRIC ? "C" : "F"));
   display->setTextAlignment(TEXT_ALIGN_LEFT);
 }
+#ifdef forecast_enable_long
+void drawForecast2(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
+{
+  drawForecastDetails(display, x, y, 3);
+  drawForecastDetails(display, x + 44, y, 4);
+  drawForecastDetails(display, x + 88, y, 5);
+}
+#endif
+
 #endif
 
 void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState *state)
