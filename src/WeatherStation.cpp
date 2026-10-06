@@ -57,6 +57,7 @@ See more at https://thingpulse.com
 #include <dhtnew.h>
 #include "settings.h"
 #include "version.h"
+#include "TelemetryState.h"
 #include <JsonListener.h>
 #include <ArduinoOTA.h>
 #include <ESP8266mDNS.h>
@@ -139,17 +140,11 @@ bool dht_valid_temp = false;
 bool dht_valid_hum = false;
 
 // flag changed in the ticker function every 10 minutes
-bool readyForWeatherUpdate = false;
-// flag changed in the ticker function every 1 minute
-bool readyForDHTUpdate = false;
-// flag changed in the ticker function every 5 minutes
-bool readyForMQTTUpdate = false;
+volatile bool readyForWeatherUpdate = false;
 
 String lastUpdate = "--";
 
-Ticker tickerdht;
 Ticker tickerweather;
-Ticker tickermqtt;
 Ticker tickerdisplayon;
 
 String hostname(HOSTNAME);
@@ -157,9 +152,32 @@ String hostname(HOSTNAME);
 // MQTT initialize
 WiFiClient espClient;
 PubSubClient client(espClient);
-long lastMsg = 0;
-char mqttmsg[50];
-int mqttcounter = 0;
+Telemetry::SensorCycle sensorCycle;
+Telemetry::ReconnectPolicy mqttReconnect;
+Telemetry::PendingPair pendingSample;
+Telemetry::PublishStats publishStats;
+uint32_t sensorReads = 0, sensorErrors = 0, mqttConnectAttempts = 0;
+uint32_t mqttDisconnects = 0, mqttMaxServiceGap = 0, mqttLastServiceAt = 0;
+uint32_t lastValidSampleAt = 0, lastMqttScheduleAt = 0;
+uint32_t mqttSchedules = 0, mqttSkippedSamples = 0;
+time_t lastValidSampleTime = 0;
+float lastValidCelsius = 0;
+int lastSensorError = 0;
+bool haveSample = false, mqttServiced = false, mqttWasConnected = false;
+bool presence = false, presencePending = false, desiredPresence = false;
+uint32_t lastPresenceAttempt = 0;
+bool presenceAttempted = false;
+volatile bool presenceTimeoutDue = false, displayOffDue = false;
+
+bool sampleFresh() {
+  return haveSample && dht_valid_temp && dht_valid_hum &&
+      !Telemetry::elapsed(millis(), lastValidSampleAt, 120000);
+}
+
+void formatSampleTime(char* out, size_t size) {
+  if (!haveSample || !Telemetry::timestamp(out, size, localtime(&lastValidSampleTime)))
+    snprintf(out, size, "%s", "unavailable");
+}
 
 #ifdef INTERNAL_WEBSERVER
 // Internal webserver to display data on demand
@@ -168,24 +186,20 @@ ESP8266WebServer server(80);
 void handleRoot()
 {
     //compute datestring
-  char time_str[18];
-  time_t now = dstAdjusted.time(nullptr);
-  struct tm *timeinfo = localtime(&now);
-  snprintf(time_str, 20, "%04d-%02d-%02d %02d:%02d:%02d", timeinfo->tm_year + 1900,
-           timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min,
-           timeinfo->tm_sec);
+  char time_str[20];
+  formatSampleTime(time_str, sizeof(time_str));
   
   String htmlbody((char *)0);
   htmlbody += "<h1>";
   htmlbody += hostname;
   htmlbody += "</h1><p>Temp: ";
-  htmlbody += dht_valid_temp ? String(temperature) : "n/a";
+  htmlbody += sampleFresh() ? String(temperature) : "n/a";
 #ifdef METRIC
   htmlbody += " C<br> RelHum:";
 #else
   htmlbody += " F<br> RelHum: ";
 #endif
-  htmlbody += dht_valid_hum ? String(humidity) : "n/a";
+  htmlbody += sampleFresh() ? String(humidity) : "n/a";
   htmlbody += " %</br>Sample Time: ";
   htmlbody += time_str;
   htmlbody += "</p><p><a href=/info>Info</a></p>";
@@ -196,7 +210,7 @@ void handleAPItemp()
 {
   String jsonbody((char *)0);
   jsonbody += "{\"temp\": ";
-  jsonbody += dht_valid_temp ? String(temperature) : "\"n/a\"";
+  jsonbody += sampleFresh() ? String(temperature) : "\"n/a\"";
   jsonbody += "}";
   server.send(200, F("text/json"), jsonbody);
 }
@@ -214,7 +228,7 @@ void handleInfo()
   #ifdef PIR_PRESENCE_CONTROL
   String mqttpresence = MQTT_OUT_TOPIC_PRESENCE;
   htmlbody += "</li><li>presence: "+mqttpresence;
-  #elif
+  #else
   htmlbody += "</li><li>presence: not compiled";
   #endif
   htmlbody += "</li></ul><p>Device: " + String(ESP.getChipId(), HEX) + "</p><p>Device uptime: ";
@@ -245,6 +259,33 @@ void handleInfo()
     htmlbody += F("disconnected");
   }
   htmlbody += F("</p>");
+  char sampleTime[20];
+  formatSampleTime(sampleTime, sizeof(sampleTime));
+  htmlbody += F("<p>Last valid sample time: ");
+  htmlbody += sampleTime;
+  htmlbody += F("</p><p>Sample age seconds: ");
+  htmlbody += haveSample ? String(static_cast<uint32_t>(millis() - lastValidSampleAt) / 1000) : String(F("unavailable"));
+  htmlbody += F("</p><p>Current sample valid: ");
+  htmlbody += sampleFresh() ? F("yes") : F("no");
+  htmlbody += F("</p><p>Sensor reads/errors: ");
+  htmlbody += String(sensorReads) + "/" + String(sensorErrors);
+  htmlbody += F("</p><p>Last sensor error: ");
+  htmlbody += String(lastSensorError);
+  htmlbody += F("</p><p>MQTT connected: ");
+  htmlbody += client.connected() ? F("yes") : F("no");
+  htmlbody += F("</p><p>MQTT connect attempts/disconnects: ");
+  htmlbody += String(mqttConnectAttempts) + "/" + String(mqttDisconnects);
+  htmlbody += F("</p><p>MQTT publish attempts/successes/failures: ");
+  htmlbody += String(publishStats.attempts) + "/" + String(publishStats.successes) + "/" + String(publishStats.failures);
+  htmlbody += F("</p><p>Pending sample: ");
+  htmlbody += pendingSample.active ? F("yes") : F("no");
+  htmlbody += F("</p><p>MQTT scheduled/skipped samples: ");
+  htmlbody += String(mqttSchedules) + "/" + String(mqttSkippedSamples);
+  htmlbody += F("</p><p>Pending replacements/expired/format errors: ");
+  htmlbody += String(publishStats.replaced) + "/" + String(publishStats.expired) + "/" + String(publishStats.formatErrors);
+  htmlbody += F("</p><p>MQTT maximum service gap ms: ");
+  htmlbody += String(mqttMaxServiceGap);
+  htmlbody += F("</p>");
   server.send(200, F("text/html"), htmlbody);
 }
 
@@ -267,11 +308,9 @@ void drawForecast2(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, i
 void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y);
 void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState *state);
 void setReadyForWeatherUpdate();
-void setReadyForDHTUpdate();
-void setReadyForMQTTUpdate();
 void updateMQTT();
 void mqttcallback(char *topic, byte *payload, unsigned int length);
-void reconnectMQTT();
+void serviceMQTT();
 int8_t getWifiQuality();
 void updateMQTTpresence(bool ispresent);
 
@@ -308,7 +347,6 @@ void setup()
   // Initialize DHT22 pins
   // pinMode(DHTPIN, OUTPUT);
   // digitalWrite(DHTPIN , LOW);
-  // delay(DELAY_DHT22_READS);
   // digitalWrite(DHTPIN , HIGH);
   Serial.begin(115200);
 
@@ -407,22 +445,20 @@ void setup()
   client.setCallback(mqttcallback);
   // RB Added 2022-12
   client.setKeepAlive(60);
+  client.setSocketTimeout(1); // bounded MQTT packet/CONNACK wait, seconds
+  espClient.setTimeout(250); // bounded DNS, TCP connect and write waits, milliseconds
 
   // Issues with some DTH22 sensors, so disabling IRQ
   mySensor.setDisableIRQ(true);
-  // we just started, so we need to give about 2 seconds (DELAY_DHT22_READS) to DHT22 for the first reading
-  if (millis() < (unsigned long)DELAY_DHT22_READS)
-  {
-    delay((unsigned long)DELAY_DHT22_READS - millis());
-  }
+  mySensor.setType(DHTTYPE == DHT11 ? 11 : 22);
+  mySensor.setWaitForReading(false);
+  mySensor.setReadDelay(2500);
   updateData(&display);
 
   tickerweather.attach(UPDATE_INTERVAL_SECS, setReadyForWeatherUpdate);
-  tickerdht.attach(60, setReadyForDHTUpdate);
-  tickermqtt.attach(UPDATE_MQTT_INTERVAL_SECS, setReadyForMQTTUpdate);
+  lastMqttScheduleAt = millis();
 #ifdef PIR_PRESENCE_CONTROL
-  setPresenceOff();
-  tickerdisplayon.once_scheduled(10, setPresenceOff);
+  presenceTimeoutDue = true;
 #endif
 
 #ifdef INTERNAL_WEBSERVER
@@ -433,41 +469,64 @@ void setup()
 #endif
 }
 
-bool presence = true;
 void updateDHT();
 
 void loop()
 {
 
-  if (readyForWeatherUpdate && ui.getUiState()->frameState == FIXED)
-  {
-    updateData(&display);
-  }
-
-  if (readyForDHTUpdate && ui.getUiState()->frameState == FIXED)
-  {
-    updateDHT();
-  }
-
-  if (readyForMQTTUpdate && ui.getUiState()->frameState == FIXED)
-  {
+  serviceMQTT();
+  updateDHT();
+  if (Telemetry::elapsed(millis(), lastMqttScheduleAt, UPDATE_MQTT_INTERVAL_SECS * 1000UL)) {
+    lastMqttScheduleAt = millis();
     updateMQTT();
   }
+  pendingSample.flush(client, millis(), MQTT_OUT_TOPIC_TEMP, MQTT_OUT_TOPIC_HUM, publishStats);
+  if (presencePending && client.connected() &&
+      (!presenceAttempted || Telemetry::elapsed(millis(), lastPresenceAttempt, 1000))) {
+    presenceAttempted = true;
+    lastPresenceAttempt = millis();
+    ++publishStats.attempts;
+    if (client.publish(MQTT_OUT_TOPIC_PRESENCE, desiredPresence ? "TRUE" : "FALSE")) {
+      ++publishStats.successes;
+      presencePending = false;
+    } else ++publishStats.failures;
+  }
+
+  ArduinoOTA.handle();
+#ifdef INTERNAL_WEBSERVER
+  server.handleClient();
+#endif
+
+  // Optional synchronous weather is deferred during a broker/Wi-Fi outage.
+  // Its HTTP wall-clock deadline remains a Phase 2 dependency repair.
+  if (readyForWeatherUpdate && client.connected() && !pendingSample.active &&
+      ui.getUiState()->frameState == FIXED) updateData(&display);
 
   int remainingTimeBudget = ui.update();
 
   if (remainingTimeBudget > 0)
   {
-    // You can do some work here
-    // Don't do stuff if you are below your
-    // time budget.
-    ArduinoOTA.handle();
-    delay(remainingTimeBudget);
-#ifdef INTERNAL_WEBSERVER
-    server.handleClient();
-#endif
-  }
+    delay(remainingTimeBudget < 5 ? remainingTimeBudget : 5);
+  } else yield();
 #ifdef PIR_PRESENCE_CONTROL
+  if (presenceTimeoutDue) {
+    presenceTimeoutDue = false;
+    if (digitalRead(PIR_PIN) == HIGH) {
+      tickerdisplayon.once_scheduled(10, setPresenceOff);
+    } else {
+      presence = false;
+      digitalWrite(LED_BUILTIN, HIGH);
+      display.setContrast(10, 5, 0);
+      tickerdisplayon.once_scheduled(10, setDisplayOff);
+    }
+  }
+  if (displayOffDue) {
+    displayOffDue = false;
+    if (!presence) {
+      display.displayOff();
+      updateMQTTpresence(false);
+    }
+  }
   if (!presence && digitalRead(PIR_PIN) == HIGH)
   {
     // presence detected
@@ -530,7 +589,8 @@ void drawOtaProgress(unsigned int progress, unsigned int total)
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.setFont(ArialMT_Plain_10);
   display.drawString(64, 10, "OTA Update");
-  display.drawProgressBar(2, 28, 124, 12, progress / (total / 100));
+  unsigned int percentage = total ? static_cast<uint64_t>(progress) * 100 / total : 0;
+  display.drawProgressBar(2, 28, 124, 12, percentage > 100 ? 100 : percentage);
   display.display();
 }
 
@@ -553,149 +613,85 @@ void updateData(OLEDDisplay *display)
   forecastClient.updateForecastsById(forecasts, OPEN_WEATHER_MAP_APP_ID, OPEN_WEATHER_MAP_LOCATION_ID, MAX_FORECASTS);
 #endif
 
-  drawProgress(display, 80, "Upd. DHT Sensor...");
-
-  updateDHT();
-
   readyForWeatherUpdate = false;
   drawProgress(display, 100, "Done...");
-  delay(1000);
 }
 
-// Called every 1 minute
+// One bounded read attempt; failed reads are spaced by SensorCycle.
 void updateDHT()
 {
-
-  int trials = DHT22_MAX_READINGS;
-  dht_valid_temp = false;
-  dht_valid_hum = false;
-
-  while (!(dht_valid_temp && dht_valid_hum) && trials > 0)
-  {
-    trials--;
-    // if we read less than DELAY_DHT22_READS ms, we wait
-    uint64_t lastread = mySensor.lastRead();
-    if (lastread < DELAY_DHT22_READS)
-    {
-      delay(DELAY_DHT22_READS - lastread);
-    }
-    mySensor.read();
-    // temperature
-    float temp_c_tmp = mySensor.getTemperature();
-    if (temp_c_tmp > MIN_ALLOWED_TEMP_C && !dht_valid_temp)
-    {
-      dht_valid_temp = true;
-      // store in F
-      temperature = temp_c_tmp * 1.8 + 32;
-      dtostrf(temperature, 4, 1, FormattedTemperature);
-    }
-    // humidity
-    float humidity_tmp = mySensor.getHumidity();
-    if (humidity_tmp > MIN_ALLOWED_HUM && !dht_valid_hum)
-    {
-      dht_valid_hum = true;
-      humidity = humidity_tmp;
-      dtostrf(humidity, 4, 1, FormattedHumidity);
-    }
+  uint32_t now = millis();
+  if (!sensorCycle.due(now)) return;
+  ++sensorReads;
+  lastSensorError = mySensor.read();
+  float celsius = mySensor.getTemperature();
+  float rh = mySensor.getHumidity();
+  bool valid = lastSensorError == DHTLIB_OK && Telemetry::validReading(celsius, rh);
+  if (lastSensorError == DHTLIB_OK && !valid) lastSensorError = -100;
+  sensorCycle.finish(millis(), valid);
+  dht_valid_temp = dht_valid_hum = valid;
+  if (!valid) {
+    ++sensorErrors;
+    return;
   }
+  haveSample = true;
+  lastValidSampleAt = millis();
+  lastValidSampleTime = dstAdjusted.time(nullptr);
+  lastValidCelsius = celsius;
+  temperature = Telemetry::outputTemperature(celsius, IS_METRIC);
+  humidity = rh;
+  snprintf(FormattedTemperature, sizeof(FormattedTemperature), "%4.1f", temperature);
+  snprintf(FormattedHumidity, sizeof(FormattedHumidity), "%4.1f", humidity);
 }
 
-// Called every 5 minuteS
+// Retain one latest scheduled sample; its timestamp is acquisition time.
 void updateMQTT()
 {
-  if (!client.connected())
-  {
-    reconnectMQTT();
-    client.loop();
+  ++mqttSchedules;
+  if (!sampleFresh()) {
+    ++mqttSkippedSamples;
+    return;
   }
-
-  snprintf(mqttmsg, 75, "MQTT message #%d", ++mqttcounter);
-#ifdef DEBUG
-  Serial.print("Publish message: ");
-  Serial.println(mqttmsg);
-#endif
-
-  //compute datestring
-  char time_str[18];
-  time_t now = dstAdjusted.time(nullptr);
-  struct tm *timeinfo = localtime(&now);
-  snprintf(time_str, 20, "%04d-%02d-%02d %02d:%02d:%02d", timeinfo->tm_year + 1900,
-           timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min,
-           timeinfo->tm_sec);
-
-  // client.publish("outTopic", mqttmsg);
-  // Format of message is: ts;source;unit;value
-  // Example: 2016-02-28 17:56:28;dht22_hum;relhum;37.4
-
-  if (dht_valid_temp == true)
-  {
-    snprintf(mqttmsg, 75, "%s;%s;%s;%s", time_str, MQTT_OUT_SENSOR_TEMP, MQTT_OUT_UNIT_TEMP, FormattedTemperature);
-#ifdef DEBUG
-    Serial.println(mqttmsg);
-#endif
-    client.publish(MQTT_OUT_TOPIC_TEMP, mqttmsg);
-  }
-
-  if (dht_valid_hum == true)
-  {
-    snprintf(mqttmsg, 75, "%s;%s;%s;%s", time_str, MQTT_OUT_SENSOR_HUM, MQTT_OUT_UNIT_HUM, FormattedHumidity);
-#ifdef DEBUG
-    Serial.println(mqttmsg);
-#endif
-    client.publish(MQTT_OUT_TOPIC_HUM, mqttmsg);
-  }
-
-  readyForMQTTUpdate = false;
+  if (!pendingSample.stage(localtime(&lastValidSampleTime), lastValidSampleAt,
+      lastValidCelsius, humidity, IS_METRIC, MQTT_OUT_SENSOR_TEMP, MQTT_OUT_SENSOR_HUM,
+      MQTT_OUT_TOPIC_TEMP, MQTT_OUT_TOPIC_HUM, client.getBufferSize(), publishStats))
+    ++mqttSkippedSamples;
 }
 
-void updateMQTTpresence(bool ispresent) {
-  if (!client.connected())
-  {
-    reconnectMQTT();
-    client.loop();
-  }
-  if (ispresent) {
-    client.publish(MQTT_OUT_TOPIC_PRESENCE, "TRUE");
-  } else {
-    client.publish(MQTT_OUT_TOPIC_PRESENCE, "FALSE");
-  }
-}
-
-void reconnectMQTT()
+// Presence events are queued; timer callbacks never touch sockets.
+void updateMQTTpresence(bool ispresent)
 {
-  while (!client.connected())
-  {
-    Serial.print("Attempting MQTT connection to:");
-    Serial.print(mqtt_server);
-    // Attempt to connect
-    if (client.connect(hostname.c_str()))
-    {
-#ifdef DEBUG
-      Serial.println(" connected");
-#endif
+  desiredPresence = ispresent;
+  presencePending = true;
+  presenceAttempted = false;
+}
 
-      // Once connected, publish an announcement...
-      // client.publish(MQTT_OUT_TOPIC_TEMP, mqttmsg);
-      // ... and resubscribe
-      // client.subscribe("inTopic");
-    }
-    else
-    {
-#ifdef DEBUG
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-#endif
-      // Wait 3 seconds before retrying
-      delay(3000);
-    }
+void serviceMQTT()
+{
+  uint32_t now = millis();
+  if (mqttServiced) {
+    uint32_t gap = now - mqttLastServiceAt;
+    if (gap > mqttMaxServiceGap) mqttMaxServiceGap = gap;
   }
+  mqttServiced = true;
+  mqttLastServiceAt = now;
+  bool wifi = WiFi.status() == WL_CONNECTED;
+  if (!wifi) espClient.stop();
+  if (client.connected()) client.loop();
+  bool connected = client.connected();
+  if (mqttWasConnected && !connected) ++mqttDisconnects;
+  if (mqttReconnect.due(millis(), wifi, connected)) {
+    ++mqttConnectAttempts;
+    connected = client.connect(hostname.c_str());
+    mqttReconnect.finish(millis(), connected, random(251));
+  }
+  mqttWasConnected = connected;
 }
 
 void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int16_t y)
 {
   char *dstAbbrev;
-  char time_str[11];
+  char time_str[32];
   time_t now = dstAdjusted.time(&dstAbbrev);
   struct tm *timeinfo = localtime(&now);
 
@@ -709,21 +705,20 @@ void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, in
   display->setTextAlignment(TEXT_ALIGN_RIGHT);
 
 #ifdef STYLE_24HR
-  sprintf(time_str, "%02d:%02d:%02d\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  Telemetry::clockText(time_str, sizeof(time_str), timeinfo, true, false);
   display->drawString(108 + x, 19 + y, time_str);
 #else
-  int hour = (timeinfo->tm_hour + 11) % 12 + 1; // take care of noon and midnight
-  sprintf(time_str, "%2d:%02d:%02d\n", hour, timeinfo->tm_min, timeinfo->tm_sec);
+  Telemetry::clockText(time_str, sizeof(time_str), timeinfo, false, false);
   display->drawString(101 + x, 19 + y, time_str);
 #endif
 
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->setFont(ArialMT_Plain_10);
 #ifdef STYLE_24HR
-  sprintf(time_str, "%s", dstAbbrev);
+  snprintf(time_str, sizeof(time_str), "%s", dstAbbrev ? dstAbbrev : "?");
   display->drawString(108 + x, 27 + y, time_str); // Known bug: Cuts off 4th character of timezone abbreviation
 #else
-  sprintf(time_str, "%s\n%s", dstAbbrev, timeinfo->tm_hour >= 12 ? "pm" : "am");
+  snprintf(time_str, sizeof(time_str), "%s\n%s", dstAbbrev ? dstAbbrev : "?", timeinfo->tm_hour >= 12 ? "pm" : "am");
   display->drawString(102 + x, 18 + y, time_str);
 #endif
 }
@@ -750,10 +745,8 @@ void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, int1
   display->setFont(ArialMT_Plain_10);
   display->drawString(64 + x, 0, DHTTEXT " Indoor Sensor");
   display->setFont(ArialMT_Plain_16);
-  dtostrf(temperature, 4, 1, FormattedTemperature);
-  display->drawString(64 + x, 12, "Temp: " + String(FormattedTemperature) + (IS_METRIC ? "°C" : "°F"));
-  dtostrf(humidity, 4, 1, FormattedHumidity);
-  display->drawString(64 + x, 30, "Humidity: " + String(FormattedHumidity) + "%");
+  display->drawString(64 + x, 12, "Temp: " + (sampleFresh() ? String(FormattedTemperature) : String("n/a")) + (IS_METRIC ? "°C" : "°F"));
+  display->drawString(64 + x, 30, "Humidity: " + (sampleFresh() ? String(FormattedHumidity) : String("n/a")) + "%");
 }
 
 #ifdef forecast_enable
@@ -783,24 +776,23 @@ void drawForecastDetails(OLEDDisplay *display, int x, int y, int dayIndex)
 
 void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState *state)
 {
-  char time_str[11];
+  char time_str[32];
   time_t now = dstAdjusted.time(nullptr);
   struct tm *timeinfo = localtime(&now);
 
   display->setFont(ArialMT_Plain_10);
 
 #ifdef STYLE_24HR
-  sprintf(time_str, "%02d:%02d:%02d\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+  Telemetry::clockText(time_str, sizeof(time_str), timeinfo, true, false);
 #else
-  int hour = (timeinfo->tm_hour + 11) % 12 + 1; // take care of noon and midnight
-  sprintf(time_str, "%2d:%02d:%02d%s\n", hour, timeinfo->tm_min, timeinfo->tm_sec, timeinfo->tm_hour >= 12 ? "pm" : "am");
+  Telemetry::clockText(time_str, sizeof(time_str), timeinfo, false, true);
 #endif
 
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(5, 52, time_str);
 
   display->setTextAlignment(TEXT_ALIGN_CENTER);
-  String temp = String(FormattedTemperature) + (IS_METRIC ? "°C" : "°F");
+  String temp = (sampleFresh() ? String(FormattedTemperature) : String("n/a")) + (IS_METRIC ? "°C" : "°F");
   display->drawString(101, 52, temp);
 
   int8_t quality = getWifiQuality();
@@ -838,42 +830,17 @@ int8_t getWifiQuality()
 
 void setReadyForWeatherUpdate()
 {
-#ifdef DEBUG
-  Serial.println("Setting readyForUpdate to true");
-#endif
   readyForWeatherUpdate = true;
-}
-
-void setReadyForDHTUpdate()
-{
-#ifdef DEBUG
-  Serial.println("Setting readyForDHTUpdate to true");
-#endif
-  readyForDHTUpdate = true;
-}
-
-void setReadyForMQTTUpdate()
-{
-#ifdef DEBUG
-  Serial.println("Setting readyForMQTTUpdate to true");
-#endif
-  readyForMQTTUpdate = true;
 }
 
 #ifdef PIR_PRESENCE_CONTROL
 void setPresenceOff()
 {
-  presence = false;
-  // presence not detected
-  digitalWrite(LED_BUILTIN, HIGH);
-  display.setContrast(10, 5, 0);
-  tickerdisplayon.once_scheduled(10, setDisplayOff);
+  presenceTimeoutDue = true;
 }
 
 void setDisplayOff()
 {
-  display.displayOff(); // drastic off
-   // Send an MQTT message to signal presence is off
-   updateMQTTpresence(false);
+  displayOffDue = true;
 }
 #endif

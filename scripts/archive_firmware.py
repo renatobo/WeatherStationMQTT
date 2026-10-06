@@ -37,7 +37,7 @@ def archive(label):
         'libraries': {},
         'note': 'Build artifacts only. Deployment identity requires upload evidence; libraries list cached inventory.',
     }
-    sources = [root / n for n in ('src', 'include', 'lib') if (root / n).exists()]
+    sources = [root / n for n in ('src', 'include', 'lib', 'test', 'scripts') if (root / n).exists()]
     files = [p for folder in sources for p in folder.rglob('*') if p.is_file()]
     files += [root / n for n in ('platformio.ini', 'build-profiles.ini',
                                  'mysecret_envs.ini') if (root / n).exists()]

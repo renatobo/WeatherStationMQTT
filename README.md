@@ -1,6 +1,6 @@
 # WeatherStationMQTT
 
-Current tagged baseline: [v0.1.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.1.0).
+Current tagged firmware: [v0.2.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.2.0).
 See [CHANGELOG.md](CHANGELOG.md).
 
 Additions to the already good [Weather Station](https://github.com/ThingPulse/esp8266-weather-station-color):
@@ -103,6 +103,35 @@ date/time, device profile, running sketch MD5, last reset reason and current
 Wi-Fi RSSI in dBm. Compilation time uses the build host's time zone. MD5 identifies
 the running image; the private recovery manifest uses SHA256 for artifact checks.
 Reset reason describes the last boot, and RSSI is a point-in-time sample.
+
+In v0.2.0, MQTT and HTTP sample timestamps represent sensor acquisition time.
+Samples are coherent temperature/humidity pairs; the display and HTTP endpoint
+mark them unavailable after a failed sensor read or two minutes without a valid
+sample. One DHT cycle runs per minute with up to three attempts spaced 2.5 seconds
+apart. `METRIC` controls both values and unit labels throughout the application.
+
+MQTT retains only the latest scheduled pair. Successful halves are not repeated
+when the other half fails; pending data expires five minutes after acquisition.
+Reconnect attempts use Wi-Fi gating, backoff and jitter. Publish success means
+the client accepted the write, not that a broker or database acknowledged it.
+The existing semicolon payload and topics are preserved.
+
+`/info` adds sample age/validity, sensor errors, connection and publication counts,
+pending replacements/expiration, skipped scheduled samples and maximum MQTT
+service gap. Optional weather still uses synchronous HTTP and is deferred while
+MQTT is offline; bounding that dependency is Phase 2 work.
+
+Run the host policy tests with sanitizers:
+
+```sh
+clang++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -fno-omit-frame-pointer -Iinclude test/telemetry_state_test.cpp \
+  -o /tmp/weather-telemetry-tests
+/tmp/weather-telemetry-tests
+```
+
+These test the shared scheduling, formatting and pending-sample policies using
+fake clocks and clients. They do not replace hardware outage or long-soak tests.
 
 For each subsequent release, bump `include/version.h`, update `CHANGELOG.md`,
 build and verify all profiles, commit the intended changes, and create/publish

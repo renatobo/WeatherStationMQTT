@@ -1,0 +1,63 @@
+{
+  "version": "0.2.0",
+  "host_tests": "clang++ C++11; ASan/UBSan; all policy checks passed",
+  "profiles": {
+    "office": {
+      "status": "SUCCESS",
+      "duration": "00:00:19.078",
+      "ram_used": 35776,
+      "flash_used": 462472
+    },
+    "office_ota": {
+      "status": "SUCCESS",
+      "duration": "00:00:18.391",
+      "ram_used": 35776,
+      "flash_used": 462472
+    },
+    "workshop": {
+      "status": "SUCCESS",
+      "duration": "00:00:19.048",
+      "ram_used": 35796,
+      "flash_used": 462496
+    },
+    "workshop_ota": {
+      "status": "SUCCESS",
+      "duration": "00:00:20.624",
+      "ram_used": 35796,
+      "flash_used": 462496
+    },
+    "Printer3d": {
+      "status": "SUCCESS",
+      "duration": "00:00:20.512",
+      "ram_used": 35748,
+      "flash_used": 462456
+    },
+    "Printer3d_ota": {
+      "status": "SUCCESS",
+      "duration": "00:00:30.424",
+      "ram_used": 35748,
+      "flash_used": 462456
+    }
+  },
+  "warnings": [
+    ".pio/libdeps/Printer3d/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+    ".pio/libdeps/Printer3d/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+    ".pio/libdeps/Printer3d_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+    ".pio/libdeps/Printer3d_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+    ".pio/libdeps/office/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+    ".pio/libdeps/office/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+    ".pio/libdeps/office_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+    ".pio/libdeps/office_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+    ".pio/libdeps/workshop/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+    ".pio/libdeps/workshop/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+    ".pio/libdeps/workshop_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+    ".pio/libdeps/workshop_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]"
+  ],
+  "metric_24h": {
+    "status": "SUCCESS",
+    "ram_used": 35776,
+    "flash_used": 462404
+  },
+  "build_log_sha256": "60fd20b43224b7188262622621b1ab3fce52bb6185e06b82cedd785a7cbdba39",
+  "hardware_outage_tested": false
+}

@@ -119,11 +119,10 @@ const int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
 
 // DHT Settings
 // suggested read: https://github.com/RobTillaart/DHTNew
-#define DHT22_MAX_READINGS 3 // some sensors give faulty readings first time
+#define DHT11 11
+#define DHT21 21
+#define DHT22 22
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-#define MIN_ALLOWED_TEMP_C -100 // any reading of temp lower than this temp in C is invalid
-#define MIN_ALLOWED_HUM -1 // any reading of humidity lower than this value is invalid
-#define DELAY_DHT22_READS 2500 // wait 2.5 seconds between readings to avoid swampinp DHt22
 
 // -----------------------------------
 // Example Locales (uncomment only 1) or pass via command line define
@@ -165,7 +164,11 @@ String OPEN_WEATHER_MAP_LOCATION_ID = MYOPEN_WEATHER_MAP_LOCATION;
 String OPEN_WEATHER_MAP_LANGUAGE = "en";
 const uint8_t MAX_FORECASTS = 4;
 
+#ifdef METRIC
+const boolean IS_METRIC = true;
+#else
 const boolean IS_METRIC = false;
+#endif
 
 // Adjust according to your language
 const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
