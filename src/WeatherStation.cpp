@@ -56,6 +56,7 @@ See more at https://thingpulse.com
 #include <simpleDSTadjust.h>
 #include <dhtnew.h>
 #include "settings.h"
+#include "version.h"
 #include <JsonListener.h>
 #include <ArduinoOTA.h>
 #include <ESP8266mDNS.h>
@@ -218,8 +219,32 @@ void handleInfo()
   #endif
   htmlbody += "</li></ul><p>Device: " + String(ESP.getChipId(), HEX) + "</p><p>Device uptime: ";
   htmlbody += uptime_formatter::getUptime();
+  htmlbody += F("</p><p>Firmware version: <a href=\"" FIRMWARE_TAG_URL "\">" FIRMWARE_TAG "</a>");
   htmlbody += "</p><p>SW build date: ";
-  htmlbody += __TIMESTAMP__;
+  htmlbody += F(__DATE__ " " __TIME__);
+  htmlbody += F("</p><p>Device profile: ");
+#if defined(office)
+  htmlbody += F("office");
+#elif defined(workshop)
+  htmlbody += F("workshop");
+#elif defined(Printer3d)
+  htmlbody += F("Printer3d");
+#else
+  htmlbody += F("unknown");
+#endif
+  htmlbody += F("</p><p>Sketch MD5: ");
+  String sketchMD5 = ESP.getSketchMD5();
+  htmlbody += sketchMD5.length() == 32 ? sketchMD5 : String(F("unavailable"));
+  htmlbody += F("</p><p>Reset reason: ");
+  htmlbody += ESP.getResetReason();
+  htmlbody += F("</p><p>Wi-Fi RSSI: ");
+  if (WiFi.status() == WL_CONNECTED) {
+    htmlbody += String(WiFi.RSSI());
+    htmlbody += F(" dBm");
+  } else {
+    htmlbody += F("disconnected");
+  }
+  htmlbody += F("</p>");
   server.send(200, F("text/html"), htmlbody);
 }
 

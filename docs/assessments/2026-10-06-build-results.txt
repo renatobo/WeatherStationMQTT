@@ -1,0 +1,25 @@
+Command: pio run
+Exit code: 1
+PlatformIO Core: 6.1.19
+Host: arm64; compiler: Mach-O x86_64
+No upload executed. RAM/flash/source compilation unverified.
+
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-g++: Bad CPU type in executable
+sh: /Users/renatobo/.platformio/packages/toolchain-xtensa/bin/xtensa-lx106-elf-gcc: Bad CPU type in executable
+office         FAILED    00:00:03.795
+office_ota     FAILED    00:00:00.997
+workshop       FAILED    00:00:00.832
+workshop_ota   FAILED    00:00:00.907
+Printer3d      FAILED    00:00:00.842
+Printer3d_ota  FAILED    00:00:00.833

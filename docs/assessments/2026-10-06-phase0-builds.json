@@ -1,0 +1,142 @@
+{
+  "private": {
+    "profiles": {
+      "office": {
+        "status": "SUCCESS",
+        "duration": "00:00:32.485",
+        "ram_used": 34988,
+        "ram_limit": 81920,
+        "flash_used": 455876,
+        "flash_limit": 1044464
+      },
+      "office_ota": {
+        "status": "SUCCESS",
+        "duration": "00:00:32.395",
+        "ram_used": 34988,
+        "ram_limit": 81920,
+        "flash_used": 455876,
+        "flash_limit": 1044464
+      },
+      "workshop": {
+        "status": "SUCCESS",
+        "duration": "00:00:30.762",
+        "ram_used": 35004,
+        "ram_limit": 81920,
+        "flash_used": 455888,
+        "flash_limit": 1044464
+      },
+      "workshop_ota": {
+        "status": "SUCCESS",
+        "duration": "00:00:31.159",
+        "ram_used": 35004,
+        "ram_limit": 81920,
+        "flash_used": 455888,
+        "flash_limit": 1044464
+      },
+      "Printer3d": {
+        "status": "SUCCESS",
+        "duration": "00:00:30.680",
+        "ram_used": 34972,
+        "ram_limit": 81920,
+        "flash_used": 455856,
+        "flash_limit": 1044464
+      },
+      "Printer3d_ota": {
+        "status": "SUCCESS",
+        "duration": "00:00:31.564",
+        "ram_used": 34972,
+        "ram_limit": 81920,
+        "flash_used": 455856,
+        "flash_limit": 1044464
+      }
+    },
+    "compiler_warnings": [
+      ".pio/libdeps/Printer3d/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/Printer3d/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/Printer3d_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/Printer3d_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/office/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/office/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/office_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/office_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/workshop/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/workshop/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/workshop_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/workshop_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      "src/WeatherStation.cpp:174:32: warning: '%02d' directive output may be truncated writing between 2 and 11 bytes into a region of size between 8 and 15 [-Wformat-truncation=]",
+      "src/WeatherStation.cpp:622:32: warning: '%02d' directive output may be truncated writing between 2 and 11 bytes into a region of size between 8 and 15 [-Wformat-truncation=]",
+      "src/WeatherStation.cpp:796:37: warning: '"
+    ],
+    "log_sha256": "852f6617612aed4ff03012173dd384cb77901e2cb289684ee2db25e0e50fa431"
+  },
+  "isolated_placeholder": {
+    "profiles": {
+      "office": {
+        "status": "SUCCESS",
+        "duration": "00:00:33.004",
+        "ram_used": 34988,
+        "ram_limit": 81920,
+        "flash_used": 455876,
+        "flash_limit": 1044464
+      },
+      "office_ota": {
+        "status": "SUCCESS",
+        "duration": "00:00:33.235",
+        "ram_used": 34988,
+        "ram_limit": 81920,
+        "flash_used": 455876,
+        "flash_limit": 1044464
+      },
+      "workshop": {
+        "status": "SUCCESS",
+        "duration": "00:00:31.614",
+        "ram_used": 35000,
+        "ram_limit": 81920,
+        "flash_used": 455892,
+        "flash_limit": 1044464
+      },
+      "workshop_ota": {
+        "status": "SUCCESS",
+        "duration": "00:00:31.823",
+        "ram_used": 35000,
+        "ram_limit": 81920,
+        "flash_used": 455892,
+        "flash_limit": 1044464
+      },
+      "Printer3d": {
+        "status": "SUCCESS",
+        "duration": "00:00:33.010",
+        "ram_used": 35004,
+        "ram_limit": 81920,
+        "flash_used": 455888,
+        "flash_limit": 1044464
+      },
+      "Printer3d_ota": {
+        "status": "SUCCESS",
+        "duration": "00:00:28.557",
+        "ram_used": 35004,
+        "ram_limit": 81920,
+        "flash_used": 455888,
+        "flash_limit": 1044464
+      }
+    },
+    "compiler_warnings": [
+      ".pio/libdeps/Printer3d/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/Printer3d/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/Printer3d_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/Printer3d_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/office/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/office/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/office_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/office_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/workshop/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/workshop/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      ".pio/libdeps/workshop_ota/PubSubClient/src/PubSubClient.cpp:523:16: warning: comparison of integer expressions of different signedness: 'unsigned int' and 'int' [-Wsign-compare]",
+      ".pio/libdeps/workshop_ota/simpleDSTadjust/simpleDSTadjust.cpp:43:14: warning: suggest parentheses around '&&' within '||' [-Wparentheses]",
+      "src/WeatherStation.cpp:174:32: warning: '%02d' directive output may be truncated writing between 2 and 11 bytes into a region of size between 8 and 15 [-Wformat-truncation=]",
+      "src/WeatherStation.cpp:622:32: warning: '%02d' directive output may be truncated writing between 2 and 11 bytes into a region of size between 8 and 15 [-Wformat-truncation=]",
+      "src/WeatherStation.cpp:796:37: warning: '"
+    ],
+    "log_sha256": "e10a715dc04eb10df06ff7f533715b2dc0e50d4edf95af3e5b66553fff3cd1b4"
+  }
+}

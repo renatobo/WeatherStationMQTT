@@ -2,3 +2,4 @@
 .vscode/*
 mysecret_envs.ini
 include/mysecrets.h
+.recovery/

@@ -1,0 +1,12 @@
+{
+  "host": "druino-workshop.local",
+  "version": "0.1.0",
+  "github_tag": "https://github.com/renatobo/WeatherStationMQTT/tree/v0.1.0",
+  "sketch_md5": "bc093dbbf8d335141125820aeb7ba308",
+  "matches_local_binary": true,
+  "build_date": "Oct  6 2026 10:39:42",
+  "profile": "workshop",
+  "reset_reason": "Software/System restart",
+  "wifi_rssi": "-40 dBm",
+  "uptime": "0 days, 0 hours, 0 minutes, 25 seconds"
+}

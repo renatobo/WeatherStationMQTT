@@ -1,0 +1,79 @@
+{
+  "window": "370-second passive subscription; first and last received messages shown below",
+  "received_by_topic": {
+    "sensors/druinoworkshop/presence": 37,
+    "sensors/druinoworkshop/temp": 2,
+    "sensors/druinoworkshop/hum": 2,
+    "sensors/druinooffice/temp": 2,
+    "sensors/druinooffice/hum": 2
+  },
+  "metric_messages_matched": 8,
+  "matches": [
+    {
+      "received": "2026-10-06T10:27:52-0700",
+      "topic": "sensors/druinoworkshop/temp",
+      "payload_timestamp": "2026-10-06 10:27:52",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:27:52-0700",
+      "topic": "sensors/druinoworkshop/hum",
+      "payload_timestamp": "2026-10-06 10:27:52",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:28:08-0700",
+      "topic": "sensors/druinooffice/temp",
+      "payload_timestamp": "2026-10-06 10:28:08",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:28:08-0700",
+      "topic": "sensors/druinooffice/hum",
+      "payload_timestamp": "2026-10-06 10:28:08",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:32:53-0700",
+      "topic": "sensors/druinoworkshop/temp",
+      "payload_timestamp": "2026-10-06 10:32:53",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:32:53-0700",
+      "topic": "sensors/druinoworkshop/hum",
+      "payload_timestamp": "2026-10-06 10:32:53",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:33:10-0700",
+      "topic": "sensors/druinooffice/temp",
+      "payload_timestamp": "2026-10-06 10:33:09",
+      "stored_exactly": true
+    },
+    {
+      "received": "2026-10-06T10:33:10-0700",
+      "topic": "sensors/druinooffice/hum",
+      "payload_timestamp": "2026-10-06 10:33:09",
+      "stored_exactly": true
+    }
+  ],
+  "broker_log_range": [
+    "2026-10-06T00:03:10-07:00",
+    "2026-10-06T10:33:10-07:00"
+  ],
+  "broker_log_excerpt_counts": {
+    "DRUINO-OFFICE": {
+      "new_connections": 130,
+      "keepalive_timeouts": 129,
+      "duplicate_id_closures": 0
+    },
+    "DRUINO-WORKSHOP": {
+      "new_connections": 75,
+      "keepalive_timeouts": 60,
+      "duplicate_id_closures": 6
+    }
+  },
+  "first_received": "2026-10-06T10:27:33-0700",
+  "last_received": "2026-10-06T10:33:35-0700"
+}
