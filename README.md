@@ -93,9 +93,6 @@ and private; never publish these archives because firmware embeds configuration.
 Keep an encrypted copy outside this computer for recovery. A successful build
 alone does not prove a binary has booted or delivered readings.
 
-See [Phase 0 evidence](docs/assessments/2026-10-06-phase0.md) and the
-[modernization assessment](docs/assessments/2026-10-06-modernization.md).
-
 ### Firmware identity and versions
 
 `/info` reports the version with a link to its immutable GitHub tag, compilation
@@ -181,7 +178,7 @@ clang++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 
 Use `scripts/verify_device.py --weather` with the archived device image for a live
 check of version, image identity, fresh validated weather, TLS status and heap
-diagnostics. See [Phase 2 evidence](docs/assessments/2026-10-06-phase2.md).
+diagnostics.
 
 For each subsequent release, bump `include/version.h`, update `CHANGELOG.md`,
 build and verify all profiles, commit the intended changes, and create/publish
