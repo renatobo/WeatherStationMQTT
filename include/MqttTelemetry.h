@@ -1,4 +1,8 @@
 #pragma once
+
+// Project modifications by Renato Bonomini (renatobo); MIT, see LICENSE.
+// MQTT services and read-only diagnostic counters. Sample servicing also
+// runs during weather reads; presence publishing remains in the normal loop.
 #include <Arduino.h>
 #include "TelemetryState.h"
 

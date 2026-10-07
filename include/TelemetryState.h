@@ -1,4 +1,5 @@
 #pragma once
+// Project modifications and modernization by Renato Bonomini (renatobo); MIT, see LICENSE.
 
 #include <cmath>
 #include <cstddef>
@@ -46,6 +47,8 @@ inline bool clockText(char* out, size_t size, const tm* time, bool twentyFour, b
   return false;
 }
 
+// Three spaced attempts per minute; caller performs one read per due() result.
+// Unsigned elapsed arithmetic keeps scheduling safe across millis() rollover.
 struct SensorCycle {
   uint32_t lastCycle = 0;
   uint32_t lastAttempt = 0;
@@ -68,6 +71,8 @@ struct SensorCycle {
   }
 };
 
+// Immediate first connect, then exponential backoff capped near thirty seconds.
+// Jitter keeps multiple devices from retrying in lockstep after a broker outage.
 struct ReconnectPolicy {
   uint32_t lastAttempt = 0;
   uint32_t wait = 1000;
@@ -94,6 +99,8 @@ struct PublishStats {
   uint32_t formatErrors = 0;
 };
 
+// One acquisition timestamp for both payloads. Track each successful half so
+// retries do not resend it; expire the pair after five minutes.
 struct PendingPair {
   char temperature[128] = {};
   char humidity[128] = {};

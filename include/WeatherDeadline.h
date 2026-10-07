@@ -1,4 +1,5 @@
 #pragma once
+// Project modifications and modernization by Renato Bonomini (renatobo); MIT, see LICENSE.
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -26,6 +27,8 @@ inline const char* errorName(Error error) {
   return "unknown";
 }
 
+// A request has an eight-second total budget and a 1.5-second idle budget.
+// First failure wins; wire-byte accounting also bounds header/body traffic.
 struct Deadline {
   uint32_t started;
   uint32_t lastData;

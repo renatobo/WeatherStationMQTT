@@ -1,4 +1,8 @@
 #pragma once
+
+// Project modifications by Renato Bonomini (renatobo); MIT, see LICENSE.
+// Shared indoor sample and diagnostics. Consumers must check sampleFresh()
+// before displaying/publishing; stored values can outlive a failed sensor read.
 #include <Arduino.h>
 #include <time.h>
 

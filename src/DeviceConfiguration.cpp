@@ -1,3 +1,11 @@
+// SPDX-License-Identifier: MIT
+// Derived from the ThingPulse weather station; see LICENSE for copyright and attribution.
+// Project modifications and modernization by Renato Bonomini (renatobo).
+//
+// Profile-specific configuration storage and the shared DST clock.
+// settings.h supplies declarations and compile-time switches; this file supplies
+// one definition so all modules use the same topics, units and clock.
+
 #include "settings.h"
 
 // One owner for configuration storage and the DST clock.

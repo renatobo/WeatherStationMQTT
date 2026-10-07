@@ -1,4 +1,5 @@
 #pragma once
+// Project modifications and modernization by Renato Bonomini (renatobo); MIT, see LICENSE.
 #include <ArduinoJson.h>
 #include <cmath>
 #include <cstring>
@@ -89,6 +90,8 @@ inline bool temperatureValid(float temperature, bool metric) {
   return std::isfinite(celsius) && celsius >= -100 && celsius <= 80;
 }
 
+// Validate the full response before assigning output: malformed data must leave
+// the caller's last-good snapshot intact. Fixed JSON capacity bounds memory use.
 inline bool decode(const char* body, size_t length, bool metric, Snapshot& output, uint8_t expectedDays = 4, const char** reason = nullptr) {
   auto fail = [reason](const char* message) { if (reason) *reason = message; return false; };
   if (reason) *reason = "none";

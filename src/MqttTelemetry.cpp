@@ -1,27 +1,10 @@
-/**The MIT License (MIT)
-
-Copyright (c) 2018 by Daniel Eichhorn - ThingPulse
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-See more at https://thingpulse.com
-*/
+// SPDX-License-Identifier: MIT
+// Derived from the ThingPulse weather station; see LICENSE for copyright and attribution.
+// Project modifications and modernization by Renato Bonomini (renatobo).
+//
+// MQTT connection maintenance and queued sensor/presence publishing.
+// Owns the socket, reconnect policy and pending pair. Consumers inspect
+// connection/queue status through functions rather than accessing the client.
 
 #include "MqttTelemetry.h"
 #include <ESP8266WiFi.h>
@@ -107,6 +90,8 @@ void serviceMQTT()
   mqttLastServiceAt = now;
   bool wifi = WiFi.status() == WL_CONNECTED;
   if (!wifi) espClient.stop();
+  // PubSubClient needs loop() even when no sample is due, to maintain keepalive.
+  // Reconnect attempts below are spaced by the capped, jittered retry policy.
   if (client.connected()) client.loop();
   bool connected = client.connected();
   if (mqttWasConnected && !connected) ++mqttDisconnects;
@@ -118,6 +103,9 @@ void serviceMQTT()
   mqttWasConnected = connected;
 }
 
+// Publish on the five-minute schedule; retry unsent halves independently.
+// PendingPair expires old readings and retains only the latest scheduled pair.
+// A successful publish counts the client send, not downstream database storage.
 void serviceMqttSamples() {
   if (Telemetry::elapsed(millis(), lastMqttScheduleAt, UPDATE_MQTT_INTERVAL_SECS * 1000UL)) {
     lastMqttScheduleAt = millis();
@@ -126,6 +114,8 @@ void serviceMqttSamples() {
   pendingSample.flush(client, millis(), MQTT_OUT_TOPIC_TEMP, MQTT_OUT_TOPIC_HUM, publishStats);
 }
 
+// Presence has its own one-second retry clock. Queue updates coalesce to the
+// latest state, and timer callbacks never publish directly.
 void serviceMqttPresence() {
   if (presencePending && client.connected() &&
       (!presenceAttempted || Telemetry::elapsed(millis(), lastPresenceAttempt, 1000))) {

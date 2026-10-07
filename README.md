@@ -35,6 +35,13 @@ Additional component
 
 Wiring diagram to come
 
+## License and attribution
+
+The project derives from Daniel Eichhorn / ThingPulse's weather station and
+Neptune's customizations. Renato Bonomini added the MQTT, PIR and HTTP integration
+and subsequent project modernization. See [LICENSE](LICENSE) for the full MIT
+notice and attribution; source files carry short attribution headers.
+
 ## Software
 
 The device publishes to an MQTT broker. Store its address and the weather API
@@ -66,8 +73,9 @@ and frames in the same order as the main loop. Timer callbacks only signal or
 schedule work.
 The existing telemetry and weather policy tests remain the regression checks.
 
-v0.5.0 is a source refactor release. It has not been flashed to the live devices;
-the last verified office/workshop deployment is v0.4.0.
+v0.5.0 is deployed to office and workshop. Authenticated uploads, archived-image
+checksums, fresh weather, valid indoor samples, MQTT connections and rejection of
+incorrect OTA passwords were verified after deployment.
 
 ### Build baseline
 

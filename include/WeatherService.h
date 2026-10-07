@@ -1,4 +1,8 @@
 #pragma once
+
+// Project modifications by Renato Bonomini (renatobo); MIT, see LICENSE.
+// Weather cache and read-only request diagnostics. serviceWeather() may
+// run one bounded request and uses its callback to service the rest of the app.
 #include <Arduino.h>
 #include "WeatherJson.h"
 #include "WeatherDeadline.h"

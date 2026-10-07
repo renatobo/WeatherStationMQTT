@@ -1,4 +1,5 @@
 #pragma once
+// Project modifications and modernization by Renato Bonomini (renatobo); MIT, see LICENSE.
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecureBearSSL.h>

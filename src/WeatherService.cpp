@@ -1,27 +1,10 @@
-/**The MIT License (MIT)
-
-Copyright (c) 2018 by Daniel Eichhorn - ThingPulse
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-See more at https://thingpulse.com
-*/
+// SPDX-License-Identifier: MIT
+// Derived from the ThingPulse weather station; see LICENSE for copyright and attribution.
+// Project modifications and modernization by Renato Bonomini (renatobo).
+//
+// Scheduled, verified Open-Meteo requests and atomic weather caching.
+// Owns the request deadline and cache. During header/body reads it invokes
+// the application callback to keep MQTT, sensors, HTTP, OTA and frames serviced.
 
 #include "WeatherService.h"
 #include "settings.h"
@@ -75,11 +58,15 @@ static void updateWeather()
     weatherError = Weather::Error::Schema;
     return;
   }
+  // Certificate-date validation needs a synchronized clock. Retry later instead
+  // of disabling TLS verification while NTP is still starting.
   if (time(nullptr) < 1577836800) {
     weatherError = Weather::Error::Clock;
     return;
   }
   sampleSystemHealth();
+  // TLS needs both total free memory and a sufficiently large contiguous block.
+  // Skip this attempt rather than risking allocation failure and a reset.
   if (heapFree < 26000 || heapLargestBlock < 10000) {
     weatherError = Weather::Error::LowMemory;
     return;
@@ -91,6 +78,8 @@ static void updateWeather()
   static BearSSL::X509List trust(WEATHER_ROOT_CA);
   Weather::TlsClient secure(deadline, serviceDuringWeather, &trust);
   HTTPClient http;
+  // Decode into a candidate: failed/truncated requests must not partially
+  // replace the last good forecast used by the display and HTTP diagnostics.
   Weather::Snapshot candidate;
   bool candidateValid = false;
   String zone(WEATHER_TIMEZONE);
@@ -138,6 +127,8 @@ static void updateWeather()
   }
   weatherError = deadline.error != Weather::Error::None ? deadline.error : attemptError;
   if (static_cast<uint32_t>(millis() - deadline.started) >= 8000) weatherError = Weather::Error::TotalTimeout;
+  // Recheck the total eight-second budget before committing. A blocking SDK
+  // call may have completed after its preceding deadline check.
   if (candidateValid && weatherError == Weather::Error::None) {
     currentWeather = candidate;
     weatherHasSample = true;
@@ -154,6 +145,7 @@ static void updateWeather()
   sampleSystemHealth();
 }
 
+// Ticker callbacks only set a flag; network work stays in serviceWeather().
 static void setReadyForWeatherUpdate()
 {
   readyForWeatherUpdate = true;
@@ -163,6 +155,8 @@ void beginWeather() {
   tickerweather.attach(UPDATE_INTERVAL_SECS, setReadyForWeatherUpdate);
 }
 
+// Normal refreshes are ten minutes apart; failures retry after one minute.
+// Give MQTT reconnection and queued samples priority over another TLS request.
 void serviceWeather(void (*serviceApplication)()) {
   serviceApplicationDuringWeather = serviceApplication;
   bool weatherRetry = weatherAttempted && weatherError != Weather::Error::None &&

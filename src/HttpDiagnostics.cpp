@@ -1,27 +1,10 @@
-/**The MIT License (MIT)
-
-Copyright (c) 2018 by Daniel Eichhorn - ThingPulse
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-See more at https://thingpulse.com
-*/
+// SPDX-License-Identifier: MIT
+// Derived from the ThingPulse weather station; see LICENSE for copyright and attribution.
+// Project modifications and modernization by Renato Bonomini (renatobo).
+//
+// Read-only HTTP views of indoor samples and device health.
+// Reads state owned by sensors, MQTT, weather and SystemHealth. No passwords
+// or OTA digests belong in these responses; OTA authentication is separate.
 
 #include "HttpDiagnostics.h"
 #include <ESP8266WiFi.h>
@@ -75,6 +58,8 @@ void handleInfo()
 {
   sampleSystemHealth();
   String htmlbody((char *)0);
+  // Reserve once to reduce allocation churn while assembling diagnostics.
+  // Sample heap before this response allocation so reported minima are comparable.
   htmlbody.reserve(4096);
   String mqtttemp = MQTT_OUT_TOPIC_TEMP;
   String mqtthum = MQTT_OUT_TOPIC_HUM;

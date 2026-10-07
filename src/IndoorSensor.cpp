@@ -1,27 +1,10 @@
-/**The MIT License (MIT)
-
-Copyright (c) 2018 by Daniel Eichhorn - ThingPulse
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-See more at https://thingpulse.com
-*/
+// SPDX-License-Identifier: MIT
+// Derived from the ThingPulse weather station; see LICENSE for copyright and attribution.
+// Project modifications and modernization by Renato Bonomini (renatobo).
+//
+// DHT acquisition, validation and last-good indoor sample storage.
+// Only this module reads the sensor or changes sample state. Display, HTTP
+// and MQTT consume the same reading, units and acquisition timestamp.
 
 #include "IndoorSensor.h"
 #include "settings.h"
@@ -47,6 +30,8 @@ float lastValidCelsius = 0;
 int lastSensorError = 0;
 bool haveSample = false;
 
+// A failed current read invalidates display/publishing immediately. The stored
+// last-good values remain available for diagnostics; use expires after two minutes.
 bool sampleFresh() {
   return haveSample && dht_valid_temp && dht_valid_hum &&
       !Telemetry::elapsed(millis(), lastValidSampleAt, 120000);
@@ -69,6 +54,8 @@ void beginSensor() {
 void updateDHT()
 {
   uint32_t now = millis();
+  // One cycle per minute, up to three attempts at least 2.5 seconds apart.
+  // Never spin waiting for a sensor retry: other loop services must keep running.
   if (!sensorCycle.due(now)) return;
   ++sensorReads;
   lastSensorError = mySensor.read();
@@ -84,6 +71,8 @@ void updateDHT()
   }
   haveSample = true;
   lastValidSampleAt = millis();
+  // Capture acquisition time, not the later MQTT transmission time. Keep Celsius
+  // alongside converted display temperature so pending payload units stay correct.
   lastValidSampleTime = dstAdjusted.time(nullptr);
   lastValidCelsius = celsius;
   temperature = Telemetry::outputTemperature(celsius, IS_METRIC);

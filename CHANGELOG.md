@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Centralize the MIT notice in `LICENSE`, retain upstream attribution, and credit
+  Renato Bonomini's project modifications in source headers.
+- Document module ownership, timing/retry policies, cache validity, memory guards
+  and callback constraints without changing firmware behavior.
+
 ## [0.5.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.5.0) - 2026-10-06
 
 - Separate sensors, MQTT telemetry, Wi-Fi/OTA, HTTP diagnostics, weather fetching,
@@ -11,7 +18,8 @@
   to its owning module where it is not needed by diagnostics.
 - Remove the unused progress-screen helper and unused legacy runtime state.
 
-Source/build release only; live office/workshop devices remain on v0.4.0.
+Deployed to office and workshop with authenticated OTA. Running checksums match
+the archived images; weather, sensors, MQTT and OTA rejection checks passed.
 
 ## [0.4.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.4.0) - 2026-10-06
 
