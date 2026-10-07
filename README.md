@@ -1,6 +1,6 @@
 # WeatherStationMQTT
 
-Current tagged firmware: [v0.3.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.3.0).
+Current tagged firmware: [v0.4.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.4.0).
 See [CHANGELOG.md](CHANGELOG.md).
 
 Additions to the already good [Weather Station](https://github.com/ThingPulse/esp8266-weather-station-color):
@@ -185,3 +185,44 @@ build and verify all profiles, commit the intended changes, and create/publish
 the matching annotated `vX.Y.Z` tag. Never move an existing tag. Build deployment
 images from that exact tagged source and archive them before uploading. Record
 the live sketch MD5 against the archived binary after the device reboots.
+
+### OTA authentication and provisioning
+
+Each device has separate `ota_password` and `provisioning_password` entries under
+`[security:office]`, `[security:workshop]` or `[security:Printer3d]` in the ignored
+`mysecret_envs.ini`. Keep this file owner-readable/writable only (0600). Use unique,
+strong random passwords of 20-63 non-whitespace ASCII characters. The example file
+contains synthetic placeholders for compile checks and must not be deployed.
+
+The build generates `.pio/build/<profile>/private/device_security.h`, containing
+the OTA password digest and the setup-hotspot password. Passwords are not compiler
+flags. Firmware necessarily contains the hotspot password; treat images and private
+recovery archives as sensitive. Do not print full PlatformIO configuration or enable
+credential-bearing uploader debug logs.
+
+Ordinary `pio run -e workshop_ota -t upload` and the office equivalent use
+`scripts/ota_upload.py`. It reads the INI and invokes the pinned SDK uploader
+in-process, so credentials are not command arguments. The one-time `--bootstrap`
+option is only for installing protected firmware onto an existing unprotected device;
+subsequent uploads authenticate normally. Wrong/empty probes send only an OTA
+authentication exchange, not firmware.
+
+```sh
+python3 scripts/ota_upload.py --env workshop_ota --probe wrong
+python3 scripts/ota_upload.py --env workshop_ota --probe empty
+```
+
+The setup hotspot uses the device hostname and its separate provisioning password.
+Normal startup uses saved Wi-Fi settings. If connection fails, the protected portal
+opens for five minutes. After timeout the device closes the hotspot and retries saved
+Wi-Fi every 30 seconds; it does not reset or reopen the portal continuously. Power-cycle
+the device to reopen a setup window when needed. Existing home Wi-Fi credentials are
+preserved. Portal behavior must be physically tested on a spare device before relying
+on it for remote recovery; live credentials are not cleared as an automatic test.
+
+Store the INI and protected recovery images in a private backup. Lost OTA credentials
+require physical USB/serial recovery. Restoring a legacy v0.3.0 image removes these
+protections, so use a protected rollback image when available. SDK Digest-MD5 is basic
+authentication; it does not encrypt the image transfer or replace signed firmware.
+
+Run the synthetic credential checks with `python3 test/security_config_test.py`.

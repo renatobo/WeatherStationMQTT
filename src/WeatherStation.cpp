@@ -57,6 +57,7 @@ See more at https://thingpulse.com
 #include <dhtnew.h>
 #include "settings.h"
 #include "version.h"
+#include "device_security.h"
 #include "TelemetryState.h"
 #include <ESP8266HTTPClient.h>
 #include "WeatherJson.h"
@@ -114,6 +115,7 @@ OLEDDisplayUi ui(&display);
 
 Weather::Snapshot currentWeather;
 bool weatherHasSample = false, weatherInProgress = false, weatherAttempted = false;
+uint32_t lastWifiRetryAt = 0;
 Weather::Error weatherError = Weather::Error::None;
 Weather::Deadline* activeWeatherDeadline = nullptr;
 uint32_t weatherAttempts = 0, weatherSuccesses = 0, weatherFailures = 0;
@@ -255,6 +257,8 @@ void handleInfo()
   htmlbody += "</li></ul><p>Device: " + String(ESP.getChipId(), HEX) + "</p><p>Device uptime: ";
   htmlbody += uptime_formatter::getUptime();
   htmlbody += F("</p><p>Firmware version: <a href=\"" FIRMWARE_TAG_URL "\">" FIRMWARE_TAG "</a>");
+  htmlbody += F("</p><p>OTA authentication: enabled");
+  htmlbody += F("</p><p>Provisioning AP: password protected, five-minute startup window");
   htmlbody += "</p><p>SW build date: ";
   htmlbody += F(__DATE__ " " __TIME__);
   htmlbody += F("</p><p>Device profile: ");
@@ -426,16 +430,21 @@ void setup()
   // Uncomment for testing wifi manager
   // wifiManager.resetSettings();
   wifiManager.setAPCallback(configModeCallback);
+  wifiManager.setDebugOutput(false);
+  wifiManager.setShowPassword(false);
+  wifiManager.setConnectTimeout(20);
+  WiFi.hostname(hostname);
+  WiFi.setAutoReconnect(true);
 
   // Timeout after 5 minutes: in case of power failure, this prevents the device from being stuck on waiting for AP information
   wifiManager.setConfigPortalTimeout(300);
 
   //or use this for auto generated name ESP + ChipID
-  if (!wifiManager.autoConnect()) {
-    Serial.println("failed to connect and hit timeout");
-    //reset and try again
-    ESP.restart();
-    delay(1000);
+  if (!wifiManager.autoConnect(hostname.c_str(), PROVISIONING_PASSWORD)) {
+    Serial.println("Provisioning window closed; retrying saved WiFi");
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    WiFi.begin();
   }
 
   // Manual Wifi for debugging
@@ -446,20 +455,7 @@ void setup()
 
   Serial.print("My hostname is: "+ hostname);
 
-  int counter = 0;
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-    display.clear();
-    display.drawString(64, 10, "Connecting to WiFi");
-    display.drawXbm(46, 30, 8, 8, counter % 3 == 0 ? activeSymbol : inactiveSymbol);
-    display.drawXbm(60, 30, 8, 8, counter % 3 == 1 ? activeSymbol : inactiveSymbol);
-    display.drawXbm(74, 30, 8, 8, counter % 3 == 2 ? activeSymbol : inactiveSymbol);
-    display.display();
-
-    counter++;
-  }
+  lastWifiRetryAt = millis();
 
   ui.setTargetFPS(30);
   ui.setTimePerFrame(5 * 1000); // Setup frame display time to 10 sec
@@ -487,6 +483,7 @@ void setup()
   Serial.println("Hostname: " + hostname);
 #endif
   ArduinoOTA.setHostname((const char *)hostname.c_str());
+  ArduinoOTA.setPasswordHash(OTA_PASSWORD_HASH);
   ArduinoOTA.onProgress(drawOtaProgress);
   ArduinoOTA.begin();
 
@@ -523,6 +520,10 @@ void updateDHT();
 
 void loop()
 {
+  if (WiFi.status() != WL_CONNECTED && Telemetry::elapsed(millis(), lastWifiRetryAt, 30000)) {
+    lastWifiRetryAt = millis();
+    WiFi.begin();
+  }
 
   if (Telemetry::elapsed(millis(), healthLastSampleAt, 1000)) sampleSystemHealth();
   serviceMQTT();

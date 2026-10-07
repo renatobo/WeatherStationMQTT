@@ -4,3 +4,4 @@ mysecret_envs.ini
 include/mysecrets.h
 .recovery/
 docs/assessments/
+__pycache__/

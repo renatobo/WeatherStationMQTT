@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.4.0) - 2026-10-06
+
+- Require per-device OTA authentication with strong random passwords stored in
+  ignored `mysecret_envs.ini`; generate only the OTA digest in private firmware headers.
+- Protect each provisioning hotspot with a separate password from the same INI.
+  Hide password display/debug output and retain the five-minute setup window.
+- Close provisioning after timeout and retry saved Wi-Fi without reboot loops or
+  an indefinite startup wait. Restarting a disconnected device reopens the protected portal.
+- Use an uploader that reads credentials in-process, keeping them out of command
+  arguments and logs. Add authentication-only missing/wrong-password probes.
+
+This implements Phase 3 item 1. OTA uses the SDK's Digest-MD5 authentication;
+encrypted OTA, signed updates and broker/HTTP management hardening remain pending.
+
 ## [0.3.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.3.0) - 2026-10-06
 
 - Replace the active OpenWeatherMap path with key-free Open-Meteo conditions and
