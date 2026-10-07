@@ -1,3 +1,7 @@
+#pragma once
+#include <Arduino.h>
+#include <simpleDSTadjust.h>
+
 /**The MIT License (MIT)
 
 Copyright (c) 2016 by Daniel Eichhorn
@@ -104,16 +108,16 @@ See more at http://blog.squix.ch
 
 
 // MQTT settings for library PubSubClient
-const char* mqtt_server PROGMEM = MY_MQTT_SERVER;
-const char* MQTT_OUT_TOPIC_TEMP PROGMEM = "sensors/" DEVICEID "/temp";
-const char* MQTT_OUT_TOPIC_HUM PROGMEM = "sensors/" DEVICEID "/hum";
-const char* MQTT_OUT_SENSOR_TEMP PROGMEM = DEVICEID "_temp";
-const char* MQTT_OUT_SENSOR_HUM PROGMEM = DEVICEID "_hum";
-const char* MQTT_OUT_TOPIC_PRESENCE PROGMEM = "sensors/" DEVICEID "/presence";
+extern const char* mqtt_server;
+extern const char* MQTT_OUT_TOPIC_TEMP;
+extern const char* MQTT_OUT_TOPIC_HUM;
+extern const char* MQTT_OUT_SENSOR_TEMP;
+extern const char* MQTT_OUT_SENSOR_HUM;
+extern const char* MQTT_OUT_TOPIC_PRESENCE;
 
 // Setup
-const int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
-const int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
+constexpr int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
+constexpr int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
 
 // DHT Settings
 // suggested read: https://github.com/RobTillaart/DHTNew
@@ -133,8 +137,8 @@ const int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
 #ifdef LA
 //DST rules for US Pacific Time Zone (Los Angeles)
 #define UTC_OFFSET -8
-struct dstRule StartRule = {"PDT", Second, Sun, Mar, 2, 3600}; // Eastern Daylight time = UTC/GMT -4 hours
-struct dstRule EndRule = {"PST", First, Sun, Nov, 1, 0};       // Eastern Standard time = UTC/GMT -5 hour
+extern struct dstRule StartRule;
+extern struct dstRule EndRule;
 
 // Uncomment for 24 Hour style clock
 //#define STYLE_24HR
@@ -143,32 +147,28 @@ struct dstRule EndRule = {"PST", First, Sun, Nov, 1, 0};       // Eastern Standa
 
 // Open-Meteo is key-free; private coordinates preserve the configured weather city.
 #ifdef forecast_enable_long
-const uint8_t MAX_FORECASTS = 6;
+constexpr uint8_t MAX_FORECASTS = 6;
 #else
-const uint8_t MAX_FORECASTS = 4;
+constexpr uint8_t MAX_FORECASTS = 4;
 #endif
 
 #ifdef METRIC
-const boolean IS_METRIC = true;
+constexpr boolean IS_METRIC = true;
 #else
-const boolean IS_METRIC = false;
+constexpr boolean IS_METRIC = false;
 #endif
 
 // Adjust according to your language
-const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-const String MONTH_NAMES[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+extern const String WDAY_NAMES[];
+extern const String MONTH_NAMES[];
 #endif
 
 // Setup simpleDSTadjust Library rules
-simpleDSTadjust dstAdjusted(StartRule, EndRule);
+extern simpleDSTadjust dstAdjusted;
 
-#ifdef METRIC
-const char* MQTT_OUT_UNIT_TEMP = "celsius";
-#else
-const char* MQTT_OUT_UNIT_TEMP = "fahrenheit";
-#endif
+extern const char* MQTT_OUT_UNIT_TEMP;
 
-const char* MQTT_OUT_UNIT_HUM = "relhum";
+extern const char* MQTT_OUT_UNIT_HUM;
 
 
 /***************************

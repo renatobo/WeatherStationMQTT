@@ -1,6 +1,6 @@
 # WeatherStationMQTT
 
-Current tagged firmware: [v0.4.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.4.0).
+Current tagged firmware: [v0.5.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.5.0).
 See [CHANGELOG.md](CHANGELOG.md).
 
 Additions to the already good [Weather Station](https://github.com/ThingPulse/esp8266-weather-station-color):
@@ -39,6 +39,35 @@ Wiring diagram to come
 
 The device publishes to an MQTT broker. Store its address and the weather API
 configuration in the ignored `include/mysecrets.h`, not in `settings.h`.
+
+### Firmware modules
+
+`src/WeatherStation.cpp` owns startup and the cooperative service order. Device
+profiles, topics, endpoints, sample timing and OTA credentials keep their existing
+configuration sources. Runtime configuration storage and the DST clock are defined
+once in `DeviceConfiguration.cpp`; `settings.h` contains guarded declarations and
+compile-time settings.
+
+| Module | Responsibility |
+| --- | --- |
+| `DeviceConfiguration.cpp` | Device configuration storage and DST clock |
+| `IndoorSensor.cpp` | DHT hardware, bounded reads, sample validity and formatting |
+| `MqttTelemetry.cpp` | Broker connection, retries, queued sample pairs and presence publishing |
+| `DeviceNetwork.cpp` | Saved Wi-Fi, protected provisioning and authenticated OTA |
+| `HttpDiagnostics.cpp` | HTTP routes and device diagnostics |
+| `WeatherService.cpp` | Weather scheduling, verified HTTPS requests and cache updates |
+| `StationDisplay.cpp` | OLED frames, provisioning/OTA screens and PIR display timers |
+| `SystemHealth.cpp` | Heap measurements used by diagnostics and weather guards |
+
+Each module owns its hardware clients, timers and internal retry state. The small
+headers expose service entry points and diagnostic/sample data for consumers.
+Weather reads call back into the application to service MQTT, sensors, HTTP, OTA
+and frames in the same order as the main loop. Timer callbacks only signal or
+schedule work.
+The existing telemetry and weather policy tests remain the regression checks.
+
+v0.5.0 is a source refactor release. It has not been flashed to the live devices;
+the last verified office/workshop deployment is v0.4.0.
 
 ### Build baseline
 

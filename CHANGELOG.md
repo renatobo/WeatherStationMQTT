@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.5.0) - 2026-10-06
+
+- Separate sensors, MQTT telemetry, Wi-Fi/OTA, HTTP diagnostics, weather fetching,
+  OLED/PIR display handling and system-health sampling into focused source modules.
+- Keep startup and cooperative service order in `WeatherStation.cpp`; preserve
+  sample/retry schedules, weather cache validation, HTTP responses and OTA protection.
+- Give configuration storage and the DST clock one owner; make `settings.h`
+  safe to include across translation units. Keep device/client/timer state private
+  to its owning module where it is not needed by diagnostics.
+- Remove the unused progress-screen helper and unused legacy runtime state.
+
+Source/build release only; live office/workshop devices remain on v0.4.0.
+
 ## [0.4.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.4.0) - 2026-10-06
 
 - Require per-device OTA authentication with strong random passwords stored in
