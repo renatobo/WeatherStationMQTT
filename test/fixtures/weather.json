@@ -1,0 +1,11 @@
+{
+  "current_units": {"time":"iso8601", "temperature_2m":"°F"},
+  "current": {"time":"2026-10-06T12:00", "temperature_2m":77.0, "weather_code":2, "is_day":1},
+  "daily_units": {"time":"iso8601", "temperature_2m_max":"°F", "temperature_2m_min":"°F"},
+  "daily": {
+    "time":["2026-10-06","2026-10-07","2026-10-08","2026-10-09"],
+    "temperature_2m_max":[85,83,80,75],
+    "temperature_2m_min":[60,59,62,58],
+    "weather_code":[1,2,3,61]
+  }
+}

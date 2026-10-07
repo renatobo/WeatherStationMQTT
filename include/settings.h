@@ -1,27 +1,10 @@
-/**The MIT License (MIT)
+#pragma once
+#include <Arduino.h>
+#include <simpleDSTadjust.h>
 
-Copyright (c) 2016 by Daniel Eichhorn
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
-See more at http://blog.squix.ch
-*/
+// SPDX-License-Identifier: MIT
+// Derived from the ThingPulse weather station; see LICENSE for copyright and attribution.
+// Project configuration and modifications by Renato Bonomini (renatobo).
 
 // TODO: update for https://github.com/esp8266/Arduino/blob/master/libraries/esp8266/examples/NTP-TZ-DST/NTP-TZ-DST.ino 
 
@@ -52,10 +35,8 @@ See more at http://blog.squix.ch
 // for setup instructions
 #include "mysecrets.h"
 
-// Sign up here to get an API key:
-// https://docs.thingpulse.com/how-tos/openweathermap-key/
-#ifndef MYOPEN_WEATHER_MAP_APP_ID
-#error "Sign up here to get an API key: https://docs.thingpulse.com/how-tos/openweathermap-key/ and define macro MYOPEN_WEATHER_MAP_APP_ID"
+#if !defined(WEATHER_LATITUDE) || !defined(WEATHER_LONGITUDE) || !defined(WEATHER_TIMEZONE)
+#error "Configure WEATHER_LATITUDE, WEATHER_LONGITUDE and WEATHER_TIMEZONE in mysecrets.h"
 #endif
 
 // enable web server to show temp and hum
@@ -106,24 +87,23 @@ See more at http://blog.squix.ch
 
 
 // MQTT settings for library PubSubClient
-const char* mqtt_server PROGMEM = MY_MQTT_SERVER;
-const char* MQTT_OUT_TOPIC_TEMP PROGMEM = "sensors/" DEVICEID "/temp";
-const char* MQTT_OUT_TOPIC_HUM PROGMEM = "sensors/" DEVICEID "/hum";
-const char* MQTT_OUT_SENSOR_TEMP PROGMEM = DEVICEID "_temp";
-const char* MQTT_OUT_SENSOR_HUM PROGMEM = DEVICEID "_hum";
-const char* MQTT_OUT_TOPIC_PRESENCE PROGMEM = "sensors/" DEVICEID "/presence";
+extern const char* mqtt_server;
+extern const char* MQTT_OUT_TOPIC_TEMP;
+extern const char* MQTT_OUT_TOPIC_HUM;
+extern const char* MQTT_OUT_SENSOR_TEMP;
+extern const char* MQTT_OUT_SENSOR_HUM;
+extern const char* MQTT_OUT_TOPIC_PRESENCE;
 
 // Setup
-const int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
-const int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
+constexpr int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
+constexpr int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
 
 // DHT Settings
 // suggested read: https://github.com/RobTillaart/DHTNew
-#define DHT22_MAX_READINGS 3 // some sensors give faulty readings first time
+#define DHT11 11
+#define DHT21 21
+#define DHT22 22
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
-#define MIN_ALLOWED_TEMP_C -100 // any reading of temp lower than this temp in C is invalid
-#define MIN_ALLOWED_HUM -1 // any reading of humidity lower than this value is invalid
-#define DELAY_DHT22_READS 2500 // wait 2.5 seconds between readings to avoid swampinp DHt22
 
 // -----------------------------------
 // Example Locales (uncomment only 1) or pass via command line define
@@ -136,52 +116,38 @@ const int UPDATE_MQTT_INTERVAL_SECS = 5 * 60; // Update every 5 minutes
 #ifdef LA
 //DST rules for US Pacific Time Zone (Los Angeles)
 #define UTC_OFFSET -8
-struct dstRule StartRule = {"PDT", Second, Sun, Mar, 2, 3600}; // Eastern Daylight time = UTC/GMT -4 hours
-struct dstRule EndRule = {"PST", First, Sun, Nov, 1, 0};       // Eastern Standard time = UTC/GMT -5 hour
+extern struct dstRule StartRule;
+extern struct dstRule EndRule;
 
 // Uncomment for 24 Hour style clock
 //#define STYLE_24HR
 
 #define NTP_SERVERS "us.pool.ntp.org", "time.nist.gov", "pool.ntp.org"
 
-// OpenWeatherMap Settings
-String OPEN_WEATHER_MAP_APP_ID = MYOPEN_WEATHER_MAP_APP_ID;
-/*
-Go to https://openweathermap.org/find?q= and search for a location. Go through the
-result set and select the entry closest to the actual location you want to display 
-data for. It'll be a URL like https://openweathermap.org/city/2657896. The number
-at the end is what you assign to the constant below.
- */
-String OPEN_WEATHER_MAP_LOCATION_ID = MYOPEN_WEATHER_MAP_LOCATION;
+// Open-Meteo is key-free; private coordinates preserve the configured weather city.
+#ifdef forecast_enable_long
+constexpr uint8_t MAX_FORECASTS = 6;
+#else
+constexpr uint8_t MAX_FORECASTS = 4;
+#endif
 
-// Pick a language code from this list:
-// Arabic - ar, Bulgarian - bg, Catalan - ca, Czech - cz, German - de, Greek - el,
-// English - en, Persian (Farsi) - fa, Finnish - fi, French - fr, Galician - gl,
-// Croatian - hr, Hungarian - hu, Italian - it, Japanese - ja, Korean - kr,
-// Latvian - la, Lithuanian - lt, Macedonian - mk, Dutch - nl, Polish - pl,
-// Portuguese - pt, Romanian - ro, Russian - ru, Swedish - se, Slovak - sk,
-// Slovenian - sl, Spanish - es, Turkish - tr, Ukrainian - ua, Vietnamese - vi,
-// Chinese Simplified - zh_cn, Chinese Traditional - zh_tw.
-String OPEN_WEATHER_MAP_LANGUAGE = "en";
-const uint8_t MAX_FORECASTS = 4;
-
-const boolean IS_METRIC = false;
+#ifdef METRIC
+constexpr boolean IS_METRIC = true;
+#else
+constexpr boolean IS_METRIC = false;
+#endif
 
 // Adjust according to your language
-const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
-const String MONTH_NAMES[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+extern const String WDAY_NAMES[];
+extern const String MONTH_NAMES[];
 #endif
 
 // Setup simpleDSTadjust Library rules
-simpleDSTadjust dstAdjusted(StartRule, EndRule);
+extern simpleDSTadjust dstAdjusted;
 
-#ifdef METRIC
-const char* MQTT_OUT_UNIT_TEMP = "celsius";
-#else
-const char* MQTT_OUT_UNIT_TEMP = "fahrenheit";
-#endif
+extern const char* MQTT_OUT_UNIT_TEMP;
 
-const char* MQTT_OUT_UNIT_HUM = "relhum";
+extern const char* MQTT_OUT_UNIT_HUM;
 
 
 /***************************
