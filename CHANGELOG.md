@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refresh setup, hardware/profile limitations, deployed status, archived-image OTA
+  and verification instructions; replace header-directory boilerplate and remove
+  obsolete assessment references from configuration guidance.
 - Centralize the MIT notice in `LICENSE`, retain upstream attribution, and credit
   Renato Bonomini's project modifications in source headers.
 - Document module ownership, timing/retry policies, cache validity, memory guards

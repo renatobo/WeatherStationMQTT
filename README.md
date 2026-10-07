@@ -3,37 +3,38 @@
 Current tagged firmware: [v0.5.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.5.0).
 See [CHANGELOG.md](CHANGELOG.md).
 
-Additions to the already good [Weather Station](https://github.com/ThingPulse/esp8266-weather-station-color):
+ESP8266 weather and indoor-climate logger maintained by **Renato Bonomini**.
+It reads a DHT sensor, publishes temperature/humidity and PIR presence over MQTT,
+and displays a clock, indoor readings and Open-Meteo weather on an OLED screen.
+PIR activity controls screen brightness and sleep; HTTP endpoints expose readings
+and diagnostics. Provisioning and OTA updates use separate per-device passwords.
 
-As provided by [neptune2](https://github.com/neptune2/esp8266-weather-station-oled-DST)
+## Validated status
 
-* DayLightSavings time
-* WiFiManager
-* OTA
+| Target | Status |
+| --- | --- |
+| Office | v0.5.0 deployed and verified through authenticated OTA |
+| Workshop | v0.5.0 deployed and verified through authenticated OTA |
+| Printer3d | Serial and OTA profiles compile; no deployment verified in this rollout |
+| All six profiles | Build passed with the pinned PlatformIO toolchain |
 
-Then I added
-
-* **MQTT client** to log temperature, humidity, and PIR presence status
-* **a PIR sensor** integration to turn on the screen only when someone is in front of it:  to avoid burning the display (after 2 years, the OLED on my first device is almost burnt out) but also to eliminate the bright light at night time
-* a minimal **web server** page 
-
-and improved
-
-* changed to [DHTNEW](https://github.com/RobTillaart/DHTNEW) for DHT22 readings
+Office and workshop checks covered archived-image checksums, fresh validated HTTPS
+weather, valid indoor samples, connected MQTT sessions and rejection of incorrect
+OTA passwords. MQTT client send success does not establish downstream database
+persistence. Hardware outage/recovery and longer soak checks remain separate work.
 
 ## Hardware
 
-Components from the original [ThingPulse](https://www.amazon.com/gp/product/B01KE7BA3O)
+- ESP8266 / Wemos D1 mini.
+- DHT22 temperature/humidity sensor.
+- SSD1306-compatible 128×64 I²C OLED.
+- PIR motion sensor, such as the AM312.
 
-* ESP8266
-* DHT22
-* SSD1603 128x64 OLED
-
-Additional component
-
-* PIR, for example [AM312](https://www.amazon.com/HiLetgo-Pyroelectric-Sensor-Infrared-Detector/dp/B07RT7MK7C)
-
-Wiring diagram to come
+Pin assignments vary by device. Check `include/mysecrets.h.example` and the
+actual wiring before setting private values. The `Printer3d` example declares
+`AHT10`, but the current acquisition module uses DHT defaults; AHT10 support is
+not implemented. That profile's successful compilation does not validate its
+sensor hardware.
 
 ## License and attribution
 
@@ -45,7 +46,9 @@ notice and attribution; source files carry short attribution headers.
 ## Software
 
 The device publishes to an MQTT broker. Store its address and the weather API
-configuration in the ignored `include/mysecrets.h`, not in `settings.h`.
+configuration in the ignored `include/mysecrets.h`, not in `settings.h`. Store
+OTA/provisioning passwords and private upload destinations in `mysecret_envs.ini`
+as described below. Both private files are excluded from Git.
 
 ### Firmware modules
 
@@ -73,10 +76,6 @@ and frames in the same order as the main loop. Timer callbacks only signal or
 schedule work.
 The existing telemetry and weather policy tests remain the regression checks.
 
-v0.5.0 is deployed to office and workshop. Authenticated uploads, archived-image
-checksums, fresh weather, valid indoor samples, MQTT connections and rejection of
-incorrect OTA passwords were verified after deployment.
-
 ### Build baseline
 
 Use PlatformIO Core **6.2.0** for the validated baseline. Keep one Core installation;
@@ -89,12 +88,14 @@ For a new checkout:
 ```sh
 cp include/mysecrets.h.example include/mysecrets.h
 cp mysecret_envs.ini.example mysecret_envs.ini
+chmod 600 mysecret_envs.ini
 pio run
 ```
 
 The examples deliberately use dummy identities, Berlin weather coordinates and a
 nonresolving MQTT address. Replace them with private deployment values before
-any upload, and verify wiring. `build-profiles.ini` defines all six profiles;
+any upload: configure device identity, wiring, broker/location values, OTA targets
+and unique OTA/provisioning passwords. `build-profiles.ini` defines all six profiles;
 the ignored INI can override their private OTA destinations. Existing private
 files should be retained rather than overwritten with examples.
 
@@ -138,7 +139,7 @@ Wi-Fi RSSI in dBm. Compilation time uses the build host's time zone. MD5 identif
 the running image; the private recovery manifest uses SHA256 for artifact checks.
 Reset reason describes the last boot, and RSSI is a point-in-time sample.
 
-In v0.2.0, MQTT and HTTP sample timestamps represent sensor acquisition time.
+Since v0.2.0, MQTT and HTTP sample timestamps represent sensor acquisition time.
 Samples are coherent temperature/humidity pairs; the display and HTTP endpoint
 mark them unavailable after a failed sensor read or two minutes without a valid
 sample. One DHT cycle runs per minute with up to three attempts spaced 2.5 seconds
@@ -213,9 +214,17 @@ clang++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
 /tmp/weather-weather-tests test/fixtures/weather.json
 ```
 
-Use `scripts/verify_device.py --weather` with the archived device image for a live
-check of version, image identity, fresh validated weather, TLS status and heap
-diagnostics.
+Use `scripts/verify_device.py` with an archived device image for a read-only live
+check. Add `--weather` to require fresh validated weather, TLS status and heap
+diagnostics. Keep the checkout version aligned with the release being verified:
+
+```sh
+python3 scripts/verify_device.py druino-workshop.local \
+  --binary .recovery/v0.5.0/.pio/build/workshop_ota/firmware.bin --weather
+```
+
+The office equivalent uses `druino-office.local` and `office_ota`. A successful
+identity/weather check is separate from MQTT ingestion or physical display tests.
 
 For each subsequent release, bump `include/version.h`, update `CHANGELOG.md`,
 build and verify all profiles, commit the intended changes, and create/publish
@@ -245,8 +254,8 @@ subsequent uploads authenticate normally. Wrong/empty probes send only an OTA
 authentication exchange, not firmware.
 
 ```sh
-python3 scripts/ota_upload.py --env workshop_ota --probe wrong
-python3 scripts/ota_upload.py --env workshop_ota --probe empty
+~/.platformio/penv/bin/python scripts/ota_upload.py --env workshop_ota --probe wrong
+~/.platformio/penv/bin/python scripts/ota_upload.py --env workshop_ota --probe empty
 ```
 
 The setup hotspot uses the device hostname and its separate provisioning password.
@@ -263,3 +272,34 @@ protections, so use a protected rollback image when available. SDK Digest-MD5 is
 authentication; it does not encrypt the image transfer or replace signed firmware.
 
 Run the synthetic credential checks with `python3 test/security_config_test.py`.
+
+### Deploy an archived release
+
+Flash workshop first, verify it after reboot, then repeat for office. Use the
+PlatformIO Python environment for the direct uploader; it is the environment used
+for the verified Mac uploads. Adjust its path if Core is installed elsewhere.
+Normal `pio run -e workshop_ota -t upload` builds and uploads the current checkout;
+the command below uploads the exact archived image instead:
+
+```sh
+~/.platformio/penv/bin/python scripts/ota_upload.py --env workshop_ota \
+  --binary .recovery/v0.5.0/.pio/build/workshop_ota/firmware.bin
+python3 scripts/verify_device.py druino-workshop.local \
+  --binary .recovery/v0.5.0/.pio/build/workshop_ota/firmware.bin --weather
+```
+
+Weather may take a minute to become available while the clock synchronizes. Check
+`/info` for valid indoor readings and MQTT connection state as well. Keep the prior
+protected image and its matching private configuration for rollback. Recovery
+archives, credentials and local assessment evidence must not be pushed.
+
+### Remaining work
+
+- Physical provisioning-password, timeout, Wi-Fi outage and serial-recovery tests.
+- HTTP management protection and per-device MQTT credentials/topic permissions.
+- MQTT TLS, signed firmware and encrypted OTA transport.
+- Longer hardware soak and broker-to-database delivery verification.
+
+Module separation is complete for v0.5.0; these validation and security tasks remain
+open. Source comments and attribution improvements after the tag are documentation
+changes and do not require reflashing the deployed images.
