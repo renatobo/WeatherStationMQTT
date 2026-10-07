@@ -9,19 +9,12 @@ and displays a clock, indoor readings and Open-Meteo weather on an OLED screen.
 PIR activity controls screen brightness and sleep; HTTP endpoints expose readings
 and diagnostics. Provisioning and OTA updates use separate per-device passwords.
 
-## Validated status
+## Validation
 
-| Target | Status |
-| --- | --- |
-| Office | v0.5.0 deployed and verified through authenticated OTA |
-| Workshop | v0.5.0 deployed and verified through authenticated OTA |
-| Printer3d | Serial and OTA profiles compile; no deployment verified in this rollout |
-| All six profiles | Build passed with the pinned PlatformIO toolchain |
-
-Office and workshop checks covered archived-image checksums, fresh validated HTTPS
-weather, valid indoor samples, connected MQTT sessions and rejection of incorrect
-OTA passwords. MQTT client send success does not establish downstream database
-persistence. Hardware outage/recovery and longer soak checks remain separate work.
+The checked-in profiles build with the pinned PlatformIO toolchain. Host tests
+cover telemetry scheduling, formatting, weather validation and credential handling.
+A successful build does not prove hardware operation or downstream database
+persistence; device checks, outage/recovery tests and longer soaks are separate.
 
 ## Hardware
 
@@ -31,10 +24,9 @@ persistence. Hardware outage/recovery and longer soak checks remain separate wor
 - PIR motion sensor, such as the AM312.
 
 Pin assignments vary by device. Check `include/mysecrets.h.example` and the
-actual wiring before setting private values. The `Printer3d` example declares
-`AHT10`, but the current acquisition module uses DHT defaults; AHT10 support is
-not implemented. That profile's successful compilation does not validate its
-sensor hardware.
+actual wiring before setting private values. The acquisition module currently
+supports DHT sensors. AHT10 support is not implemented; declaring `AHT10` in a
+configuration does not enable it, and compilation does not validate sensor hardware.
 
 ## License and attribution
 
@@ -108,7 +100,7 @@ temporary directory and use a new Core directory:
 
 ```sh
 baseline_dir=$(mktemp -d)
-cp -R src include lib scripts "$baseline_dir/"
+cp -R src include scripts "$baseline_dir/"
 cp platformio.ini build-profiles.ini "$baseline_dir/"
 cp include/mysecrets.h.example "$baseline_dir/include/mysecrets.h"
 cp mysecret_envs.ini.example "$baseline_dir/mysecret_envs.ini"
@@ -205,11 +197,13 @@ validation stage, durations and cache age, plus current/minimum free heap,
 largest free blocks, fragmentation, continuation-stack margin and reset details.
 Heap minima are sampled, not continuous allocator instrumentation.
 
-Run the weather checks after installing the pinned dependencies:
+Run the weather checks after installing the pinned dependencies. Set
+`build_profile` to the environment used to install those dependencies:
 
 ```sh
+build_profile="YOUR_BUILD_PROFILE"
 clang++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
-  -fno-omit-frame-pointer -Iinclude -I.pio/libdeps/workshop/ArduinoJson/src \
+  -fno-omit-frame-pointer -Iinclude -I".pio/libdeps/$build_profile/ArduinoJson/src" \
   test/weather_test.cpp -o /tmp/weather-weather-tests
 /tmp/weather-weather-tests test/fixtures/weather.json
 ```
@@ -219,12 +213,15 @@ check. Add `--weather` to require fresh validated weather, TLS status and heap
 diagnostics. Keep the checkout version aligned with the release being verified:
 
 ```sh
-python3 scripts/verify_device.py druino-workshop.local \
-  --binary .recovery/v0.5.0/.pio/build/workshop_ota/firmware.bin --weather
+device_host="YOUR_DEVICE_HOSTNAME"
+archived_binary=".recovery/RELEASE/.pio/build/OTA_PROFILE/firmware.bin"
+python3 scripts/verify_device.py "$device_host" \
+  --binary "$archived_binary" --weather
 ```
 
-The office equivalent uses `druino-office.local` and `office_ota`. A successful
-identity/weather check is separate from MQTT ingestion or physical display tests.
+Set `device_host` to the private target and `archived_binary` to its matching
+archived image. A successful identity/weather check is separate from MQTT
+ingestion or physical display tests.
 
 For each subsequent release, bump `include/version.h`, update `CHANGELOG.md`,
 build and verify all profiles, commit the intended changes, and create/publish
@@ -235,7 +232,7 @@ the live sketch MD5 against the archived binary after the device reboots.
 ### OTA authentication and provisioning
 
 Each device has separate `ota_password` and `provisioning_password` entries under
-`[security:office]`, `[security:workshop]` or `[security:Printer3d]` in the ignored
+`[security:<device>]` sections matching the configured profiles in the ignored
 `mysecret_envs.ini`. Keep this file owner-readable/writable only (0600). Use unique,
 strong random passwords of 20-63 non-whitespace ASCII characters. The example file
 contains synthetic placeholders for compile checks and must not be deployed.
@@ -246,7 +243,7 @@ flags. Firmware necessarily contains the hotspot password; treat images and priv
 recovery archives as sensitive. Do not print full PlatformIO configuration or enable
 credential-bearing uploader debug logs.
 
-Ordinary `pio run -e workshop_ota -t upload` and the office equivalent use
+Ordinary `pio run -e "$ota_profile" -t upload` commands use
 `scripts/ota_upload.py`. It reads the INI and invokes the pinned SDK uploader
 in-process, so credentials are not command arguments. The one-time `--bootstrap`
 option is only for installing protected firmware onto an existing unprotected device;
@@ -254,8 +251,9 @@ subsequent uploads authenticate normally. Wrong/empty probes send only an OTA
 authentication exchange, not firmware.
 
 ```sh
-~/.platformio/penv/bin/python scripts/ota_upload.py --env workshop_ota --probe wrong
-~/.platformio/penv/bin/python scripts/ota_upload.py --env workshop_ota --probe empty
+ota_profile="YOUR_OTA_PROFILE"
+~/.platformio/penv/bin/python scripts/ota_upload.py --env "$ota_profile" --probe wrong
+~/.platformio/penv/bin/python scripts/ota_upload.py --env "$ota_profile" --probe empty
 ```
 
 The setup hotspot uses the device hostname and its separate provisioning password.
@@ -275,17 +273,22 @@ Run the synthetic credential checks with `python3 test/security_config_test.py`.
 
 ### Deploy an archived release
 
-Flash workshop first, verify it after reboot, then repeat for office. Use the
+Flash one device first and verify it after reboot before updating other targets. Use the
 PlatformIO Python environment for the direct uploader; it is the environment used
 for the verified Mac uploads. Adjust its path if Core is installed elsewhere.
-Normal `pio run -e workshop_ota -t upload` builds and uploads the current checkout;
-the command below uploads the exact archived image instead:
+Normal `pio run -e "$ota_profile" -t upload` builds and uploads the current checkout;
+the command below uploads the exact archived image instead. Set `ota_profile`,
+`device_host` and `archived_binary` to the private environment, target and image
+for the release being deployed:
 
 ```sh
-~/.platformio/penv/bin/python scripts/ota_upload.py --env workshop_ota \
-  --binary .recovery/v0.5.0/.pio/build/workshop_ota/firmware.bin
-python3 scripts/verify_device.py druino-workshop.local \
-  --binary .recovery/v0.5.0/.pio/build/workshop_ota/firmware.bin --weather
+ota_profile="YOUR_OTA_PROFILE"
+device_host="YOUR_DEVICE_HOSTNAME"
+archived_binary=".recovery/RELEASE/.pio/build/OTA_PROFILE/firmware.bin"
+~/.platformio/penv/bin/python scripts/ota_upload.py --env "$ota_profile" \
+  --binary "$archived_binary"
+python3 scripts/verify_device.py "$device_host" \
+  --binary "$archived_binary" --weather
 ```
 
 Weather may take a minute to become available while the clock synchronizes. Check

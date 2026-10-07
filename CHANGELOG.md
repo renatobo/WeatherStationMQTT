@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Refresh setup, hardware/profile limitations, deployed status, archived-image OTA
+- Keep local device inventory, hostnames and deployment status out of public docs;
+  parameterize device-specific build, OTA and verification examples.
+- Refresh setup, sensor limitations, archived-image OTA
   and verification instructions; replace header-directory boilerplate and remove
   obsolete assessment references from configuration guidance.
 - Centralize the MIT notice in `LICENSE`, retain upstream attribution, and credit
@@ -21,8 +23,8 @@
   to its owning module where it is not needed by diagnostics.
 - Remove the unused progress-screen helper and unused legacy runtime state.
 
-Deployed to office and workshop with authenticated OTA. Running checksums match
-the archived images; weather, sensors, MQTT and OTA rejection checks passed.
+All profiles build; sanitizer-backed telemetry/weather checks and credential
+validation passed. Device deployment receipts are kept in private recovery archives.
 
 ## [0.4.0](https://github.com/renatobo/WeatherStationMQTT/tree/v0.4.0) - 2026-10-06
 
@@ -97,4 +99,4 @@ encrypted transports, durable delivery, long soak and physical outage/recovery t
 Known issues: MQTT servicing, blocking reconnects, unchecked publishes, DHT
 scheduling, formatting/buffer safety and management security remain as described
 in the assessment. This version establishes the baseline; those repairs belong
-to subsequent versions. Workshop is the canary; office remains on legacy firmware.
+to subsequent versions.
